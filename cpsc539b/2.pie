@@ -1,0 +1,291 @@
+#lang pie
+
+;; The purpose of this assignment is to get good at using the
+;; eliminators for Nat. For each problem, do the following:
+;; 0. Understand the problem. Find two additional examples above and
+;;    beyond the provided examples, and add them to the list in the
+;;    problem description comment.
+;; 1. Identify which eliminator to use. Write why you chose it in a
+;;    comment.
+;; 2. Identify the base and the step. If they are λ-expressions,
+;;    then define them as their own definitions. If not, it's your
+;;    choice.
+;; 3. Define the function.
+;; 4. Test the function against each provided example as well as your
+;;    own examples by adding a check-same form.
+
+(claim suc (-> Nat Nat))
+(define suc (λ (x) (add1 x)))
+
+(claim id (-> Nat Nat))
+(define id (λ (x) x))
+
+
+;; Problem 1
+;; (double n) evaluates to 2 times n.
+;; Examples: (double 5) ==> 10
+;;           (double 8) ==> 16
+;;           (double 0) ==> 0
+;;           (double 1) ==> 2
+
+(claim suc-2 (-> Nat Nat))
+(define suc-2 (λ(x) (suc (suc x))))
+
+;; double wants to replace each add1 with two add1s; the suc case is constant,
+;; so use iter-Nat
+(claim double
+  (-> Nat Nat))
+(define double (λ (x) (iter-Nat x 0 suc-2)))
+
+(check-same Nat (double 5) 10)
+(check-same Nat (double 8) 16)
+(check-same Nat (double 0) 0)
+(check-same Nat (double 1) 2)
+
+;; Problem 2
+;; (+ n m) is the sum of n and m.
+;; Examples:
+;;  (+ 1 4) ==> 5
+;;  (+ 39 3) ==> 42
+;;  (+ 0 0) ==> 0
+;;  (+ 2 3) ==> 5
+
+(claim +
+  (-> Nat Nat
+    Nat))
+
+;; Given x, we want to replace each suc with suc, and zero with y. suc case is
+;; constant, so use iter-Nat
+(define + (λ (x y) (iter-Nat x y suc)))
+(check-same Nat (+ 1 4) 5)
+(check-same Nat (+ 39 3) 42)
+(check-same Nat (+ 0 0) 0)
+(check-same Nat (+ 2 3) 5)
+
+;; Problem 3
+;; (* n m) is the product of n and m
+;; Examples:
+;;  (* 2 3) ==> 6
+;;  (* 0 55) ==> 0
+;;  (* 55 0) ==> 0
+;;  (* 4 9) ==> 36
+;;  (* 9 1) ==> 9
+;;  (* 1 9) ==> 9
+(claim *
+  (-> Nat Nat Nat))
+
+;; Replace suc with (+ y) in x. suc case is a constant expression, so iter-Nat
+;; will work
+(define * (λ (x y) (iter-Nat x 0 (λ (b) (+ y b)))))
+(check-same Nat (* 2 3) 6)
+(check-same Nat (* 0 55) 0)
+(check-same Nat (* 55 0) 0)
+(check-same Nat (* 4 9) 36)
+(check-same Nat (* 1 9) 9)
+(check-same Nat (* 9 1) 9)
+
+;; Problem 4
+;; (expt n m) is n raised to the mth power
+;; Examples:
+;;  (expt 3 2) ==> 9
+;;  (expt 5 5) ==> 3125
+;;  (expt 5 0) ==> 1
+;;  (expt 5 1) ==> 5
+(claim expt
+  (-> Nat Nat
+    Nat))
+;; Replace zero with 1 and suc with (* x) in y. Constant expr in suc case, so use
+;; iter-Nat.
+(define expt (λ (x y) (iter-Nat y 1 (λ (b) (* x b)))))
+(check-same Nat (expt 3 2) 9)
+(check-same Nat (expt 5 5) 3125)
+(check-same Nat (expt 5 0) 1)
+(check-same Nat (expt 5 1) 5)
+
+
+;; Problem 4
+;; (sub1 n) is one less than n if n has add1 at the top, or zero
+;; otherwise.
+;; Examples:
+;;  (sub1 5) ==> 4
+;;  (sub1 0) ==> 0
+;;  (sub1 1) ==> 0
+;;  (sub1 6) ==> 5
+;;  (sub1 7) ==> 6
+(claim sub1
+  (-> Nat
+    Nat))
+;; Requires looking at only a single constructor of x, so use which-Nat
+(define sub1 (λ (x) (which-Nat x 0 id)))
+(check-same Nat (sub1 5) 4)
+(check-same Nat (sub1 0) 0)
+(check-same Nat (sub1 1) 0)
+(check-same Nat (sub1 6) 5)
+(check-same Nat (sub1 7) 6)
+
+(claim const (-> Nat Nat Nat))
+(define const (λ (x y) x))
+
+;; Problem 5
+;; (max n m) evaluates to whichever of n or m is largest.
+;; Examples:
+;;  (max 3 5) ==> 5
+;;  (max 4 2) ==> 4
+;;  (max 0 5) ==> 5
+;;  (max 4 4) ==> 4
+(claim max
+  (-> Nat Nat
+    Nat))
+;; This one gave me some trouble; I'd like to express it via a fixpoint, but we don't ;; have any ability to do that.
+;;
+;; So instead, break the problem into two---do (monus x y) and see if that's 0.
+;; If so, y was the bigger term. Otherwise it was x.
+;;
+;; This involves building the monus via (iter-Nat) (details about why this is
+;; the right choice are below), and then inspecting its constructor with
+;; which-Nat.
+(define max (λ (x y)
+  (which-Nat (iter-Nat x y sub1) x (const y))))
+(check-same Nat (max 3 5) 5)
+(check-same Nat (max 4 2) 4)
+(check-same Nat (max 0 5) 5)
+(check-same Nat (max 4 4) 4)
+
+;; Problem 6
+;; (min n m) evaluates to whichever of n or m is smallest.
+;; Examples:
+;;  (min 4 9) ==> 4
+;;  (min 12 0) ==> 0
+;;  (min 9 9) ==> 9
+;;  (min 8 2) ==> 2
+(claim min
+  (-> Nat Nat
+    Nat))
+;; Dual to max, except that we switch whether we return x or y.
+(define min (λ (x y)
+  (which-Nat (iter-Nat x y sub1) y (const x))))
+(check-same Nat (min 4 9) 4)
+(check-same Nat (min 12 0) 0)
+(check-same Nat (min 9 9) 9)
+(check-same Nat (min 8 2) 2)
+
+;; Problem 7
+;; (monus n m) is n minus m if n ≥ m, or 0 otherwise.
+;; Examples:
+;; (monus 2 3) ==> 0
+;; (monus 5 4) ==> 1
+;; (monus 23 2) ==> 21
+;; (monus 23 29) ==> 0
+;; (monus 6 4) ==> 2
+;; (monus 4 6) ==> 0
+(claim monus
+  (-> Nat Nat
+    Nat))
+;; In y, we'd like to replace zero with x, and suc with sub1. Again suc case is
+;; constant, so iter-Nat.
+(define monus (λ (x y) (iter-Nat y x sub1)))
+(check-same Nat (monus 2 3) 0)
+(check-same Nat (monus 5 4) 1)
+(check-same Nat (monus 23 2) 21)
+(check-same Nat (monus 23 29) 0)
+(check-same Nat (monus 6 4) 2)
+(check-same Nat (monus 4 6) 0)
+
+;; Problem 8
+;; (! n) is n factorial; that is, the product of all numbers from 1 to n.
+;; If n is zero, (! n) is 1.
+;; Examples:
+;;  (! 0) ==> 1
+;;  (! 6) ==> 720
+;;  (! 2) ==> 2
+;;  (! 3) ==> 6
+
+;; Like *, but returns 1 if the first argument is zero. This gives us
+;; a convenient way to check the base case on factorial, where we'd like (! 0)
+;; to be 1.
+(claim *-no-annihilation (-> Nat Nat Nat))
+(define *-no-annihilation (λ (x y) (which-Nat x 1 (const (* x y)))))
+
+(claim !
+  (-> Nat
+    Nat))
+;; This is the only case in which our induction isn't by a constant expression,
+;; and so we must use rec-Nat in its full generality.
+(define ! (λ (n) (*-no-annihilation n (rec-Nat n 1 *-no-annihilation))))
+(check-same Nat (! 0) 1)
+(check-same Nat (! 6) 720)
+(check-same Nat (! 2) 2)
+(check-same Nat (! 3) 6)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;; Optional challenge problems
+;;; These problems are not mandatory and do not contribute to your grade,
+;;; but they are provided for those who want extra practice with primitive
+;;; recursion.
+
+;;; (fib n) is the nth Fibonacci number.
+;;; Examples:
+;;;  (fib 0) ==> 1
+;;;  (fib 1) ==> 1
+;;;  (fib 2) ==> 2
+;;;  (fib 3) ==> 3
+;;;  (fib 4) ==> 5
+;;;  (fib 5) ==> 8
+;;; Hint: remember the relationship between for loops and recursive
+;;; functions.
+
+(claim fib
+  (-> Nat
+    Nat))
+#;(check-same Nat (fib 0) 1)
+#;(check-same Nat (fib 1) 1)
+#;(check-same Nat (fib 2) 2)
+#;(check-same Nat (fib 3) 3)
+#;(check-same Nat (fib 4) 5)
+#;(check-same Nat (fib 5) 8)
+
+;;;; Implement Ackermann's function
+;;; (ack n m) is:
+;;;    (add1 m) if n = 0
+;;;    (ack (sub1 n) 1) if n has add1 at the top and m = 0
+;;;    (ack (sub1 n) (ack n (sub1 m))) if n and m have add1 at the top
+;;; Examples:
+;;;  (ack 0 0) ==> 1
+;;;  (ack 1 0) ==> 2
+;;;  (ack 2 0) ==> 3
+;;;  (ack 3 0) ==> 5
+;;;  (ack 4 0) ==> 13
+;;;  (ack 0 1) ==> 2
+;;;  (ack 1 1) ==> 3
+;;;  (ack 2 1) ==> 5
+;;;  (ack 3 1) ==> 13
+;;;  (ack 0 2) ==> 3
+;;;  (ack 1 2) ==> 4
+;;;  (ack 2 2) ==> 7
+;;;  (ack 3 2) ==> 29
+;;;  (ack 0 3) ==> 4
+;;;  (ack 1 3) ==> 5
+;;;  (ack 2 3) ==> 9
+;;;  (ack 3 3) ==> 61
+
+(claim ack
+  (-> Nat Nat
+    Nat))
+#;(check-same Nat (ack 0 0) 1)
+#;(check-same Nat (ack 1 0) 2)
+#;(check-same Nat (ack 2 0) 3)
+#;(check-same Nat (ack 3 0) 5)
+#;(check-same Nat (ack 4 0) 13)
+#;(check-same Nat (ack 0 1) 2)
+#;(check-same Nat (ack 1 1) 3)
+#;(check-same Nat (ack 2 1) 5)
+#;(check-same Nat (ack 3 1) 13)
+#;(check-same Nat (ack 0 2) 3)
+#;(check-same Nat (ack 1 2) 4)
+#;(check-same Nat (ack 2 2) 7)
+#;(check-same Nat (ack 3 2) 29)
+#;(check-same Nat (ack 0 3) 4)
+#;(check-same Nat (ack 1 3) 5)
+#;(check-same Nat (ack 2 3) 9)
+#;(check-same Nat (ack 3 3) 61)
