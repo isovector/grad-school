@@ -1,0 +1,174 @@
+#lang pie
+
+;; 1. Define "one" to mean 1
+(claim one Nat)
+(define one 1)
+
+;; 2. Define "seven" to mean 7
+(claim seven Nat)
+(define seven 7)
+
+;; 3. Define a pair whose car is one and whose cdr is seven
+(claim one-and-seven (Pair Nat Nat))
+(define one-and-seven (cons one seven))
+
+
+;; These definitions are not a problem for you to fill out, but rather
+;; a part of future tasks. Please read and understand them.
+(claim Nat-and-Atom (Pair U U))
+(define Nat-and-Atom (cons Nat Atom))
+
+(claim Atom-and-Nat (Pair U U))
+(define Atom-and-Nat (cons Atom Nat))
+
+(claim Nat-and-Nat (Pair U U))
+(define Nat-and-Nat (cons Nat Nat))
+
+
+;; 4. Find an expression with this type and complete the definition.
+;;    Write it using add1 and zero.
+(claim a-natural-number (car Nat-and-Atom))
+(define a-natural-number (add1 zero))
+
+
+;; 5. Complete this definition.
+(claim veggies (Pair (car Atom-and-Nat) (cdr Nat-and-Atom)))
+(define veggies (cons 'hello 'world))
+
+
+;; 6. Complete this definition. car-of-Nats should find the first
+;;    Nat in a pair of Nats.
+(claim car-of-Nats
+  (-> (Pair Nat Nat)
+    Nat))
+(define car-of-Nats (lambda (x) (car x)))
+
+
+;; Please uncomment this test prior to submission.
+(check-same Nat
+  (car-of-Nats (cons 1 2))
+  1)
+
+;; 7. Complete this definition. cdr-of-Atoms should find the second
+;;    Atom in a pair of Atoms.
+(claim cdr-of-Atoms
+  (-> (Pair Atom Atom)
+    Atom))
+(define cdr-of-Atoms (lambda (x) (cdr x)))
+
+;; Please uncomment this test prior to submission.
+(check-same Atom
+  (cdr-of-Atoms (cons 'celery 'parsnip))
+  'parsnip)
+
+;; 8. Complete this definition.
+;;      (third-of-four-Nat (cons w (cons x (cons y z))))
+;;    should be
+;;      y,
+;;    no matter which Nats w, x, y, and z are.
+(claim third-of-four-Nat
+  (-> (Pair Nat (Pair Nat (Pair Nat Nat)))
+    Nat))
+(define third-of-four-Nat (lambda (x) (car (cdr (cdr x)))))
+
+;; Please uncomment this test prior to submission.
+(check-same Nat
+  (third-of-four-Nat (cons 1 (cons 2 (cons 3 4))))
+  3)
+
+
+;; 9. Complete this definition.
+;;      (left-rebalance (cons w (cons x (cons y z))))
+;;    should be
+;;      (cons (cons w x) (cons y z))
+;;    no matter which Nats w, x, y, and z are.
+(claim left-rebalance
+  (-> (Pair Nat (Pair Nat (Pair Nat Nat)))
+    (Pair (Pair Nat Nat) (Pair Nat Nat))))
+(define left-rebalance (lambda (k)
+  (cons (cons (car k) (car (cdr k)))
+        (cons (car (cdr (cdr k))) (cdr (cdr (cdr k)))))))
+
+;; Please uncomment this test prior to submission
+(check-same (Pair (Pair Nat Nat) (Pair Nat Nat))
+  (left-rebalance (cons 1 (cons 2 (cons 3 4))))
+  (cons (cons 1 2) (cons 3 4)))
+
+
+;; 10. Complete this definition.
+;;     with-Nats should take two arguments: a two-argument function and a
+;;     pair of Nats. The function should be applied to both elements of
+;;     the pair, in order.
+(claim with-Nats
+  (-> (-> Nat Nat
+        Nat)
+      (Pair Nat Nat)
+    Nat))
+(define with-Nats (lambda (f xy) (f (car xy) (cdr xy))))
+
+
+;; 11. kar-of-Nats should return the car of a pair of Nats.
+;;     Write it using with-Nats.
+(claim kar-of-Nats
+  (-> (Pair Nat Nat)
+    Nat))
+(define kar-of-Nats (with-Nats (lambda (x y) x)))
+
+;; Please uncomment this test prior to submission
+(check-same Nat
+  (kar-of-Nats (cons 4 2))
+  4)
+
+
+;; 12. kdr-of-Nats should return the cdr of a pair of Nats.
+;;     Write it using with-Nats.
+(claim kdr-of-Nats
+  (-> (Pair Nat Nat)
+    Nat))
+(define kdr-of-Nats
+    (with-Nats (lambda (x y) y)))
+
+;; Please uncomment this test prior to submission
+(check-same Nat
+  (kdr-of-Nats (cons 4 2))
+  2)
+
+;; 13. Write add1p that returns 't if its argument's value has add1 at the
+;;     top, or 'nil if not.
+;;
+;;     For example, the value of (add1p 0) should be 'nil, and the value
+;;     of (add1p 1) and (add1p 12) should be 't.
+(claim add1p
+  (-> Nat
+    Atom))
+(define add1p (lambda (x) (which-Nat x 'nil (lambda (x) 't))))
+
+;; Please uncomment these tests prior to submission
+(check-same Atom (add1p 0) 'nil)
+(check-same Atom (add1p 1) 't)
+(check-same Atom (add1p 12) 't)
+
+
+;; 14. Write this using with-Nats. If the car of the pair is zero, the
+;;     answer is the second element. Otherwise, the answer is the first
+;;     element.
+;;
+;; Examples:
+;; The value of (first-non-zero (cons 0 0)) is 0.
+;; The value of (first-non-zero (cons 0 2)) is 2.
+;; The value of (first-non-zero (cons 2 5)) is 2.
+;; The value of (first-non-zero (cons 5 2)) is 5.
+;; The value of (first-non-zero (cons 4 0)) is 4.
+(claim first-non-zero
+  (-> (Pair Nat Nat)
+    Nat))
+(define first-non-zero
+    (lambda (xy) (which-Nat (car xy) (cdr xy) (lambda (x) (car xy)))))
+
+;; Please uncomment these tests prior to submission
+(check-same Nat (first-non-zero (cons 0 0)) 0)
+(check-same Nat (first-non-zero (cons 0 2)) 2)
+(check-same Nat (first-non-zero (cons 2 5)) 2)
+(check-same Nat (first-non-zero (cons 5 2)) 5)
+(check-same Nat (first-non-zero (cons 4 0)) 4)
+
