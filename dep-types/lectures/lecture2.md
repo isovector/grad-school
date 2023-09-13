@@ -36,3 +36,5 @@ e : A × e' : B → cons e e' : Pair A B
 ### Dynamics
 
 car (cons e₁ e₂) → e₁
+
+Currently this is non-deterministic.
