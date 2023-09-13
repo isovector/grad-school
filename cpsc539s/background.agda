@@ -1,13 +1,16 @@
 open import Data.Nat
 
 module background (V : Set) where
-  open import Data.Bool as 𝔹
+  open import Agda.Primitive
+  open import Data.Bool
     using (Bool; true; false; not)
+    renaming (_∧_ to and; _∨_ to or)
   open import Data.Maybe
   open import Relation.Binary.PropositionalEquality
-  open import Data.Product
+  open import Data.Product hiding (_<*>_; map)
   import Relation.Nullary as Type
   open import Data.Empty using (⊥-elim)
+  open import Function using (const; id; _∘_)
 
   data Formula : Set where
     var     : V → Formula
@@ -22,28 +25,33 @@ module background (V : Set) where
   Model : Set
   Model = V → Maybe Bool
 
+  module _ where
+    pure : ∀ {a} {A : Set a} → A → Maybe A
+    pure = just
+
+    _<*>_ = ap
+
+    ⌜_⌟ : Formula → Model → Maybe Bool
+    ⌜ var x ⌟ M = M x
+    ⌜ ⊤ ⌟ M     = (| true |)
+    ⌜ ⊥ ⌟ M     = (| false |)
+    ⌜ ¬ x ⌟ M   = (| not (⌜ x ⌟ M) |)
+    ⌜ x ∧ y ⌟ M = (| and (⌜ x ⌟ M) (⌜ y ⌟ M) |)
+    ⌜ x ∨ y ⌟ M = (| or  (⌜ x ⌟ M) (⌜ y ⌟ M) |)
+
+
   private variable
     M : Model
     A B C : Formula
     p : V
 
+
+  _⊨_ : Model →  Formula → Set
+  M ⊨ A = ⌜ A ⌟ M ≡ just true
+  infix 4 _⊨_ _⊭_
+
   _⊭_ : Model → Formula → Set
-
-  {-# NO_POSITIVITY_CHECK #-}
-  data _⊨_ (M : Model) : Formula → Set where
-    ⊨-lookup : M p ≡ just true → M ⊨ var p
-    ⊨-⊤      :                   M ⊨ ⊤
-    ⊨-¬      : M ⊭ A           → M ⊨ ¬ A
-    ⊨-∧      : M ⊨ A           → M ⊨ B → M ⊨ A ∧ B
-    ⊨-inl    : M ⊨ A           → M ⊨ A ∨ B
-    ⊨-inr    : M ⊨ B           → M ⊨ A ∨ B
-  infix 4 _⊨_
-
-  M ⊭ A = Type.¬ (M ⊨ A)
-  infix 4 _⊭_
-
---   postulate
---     ⊭-¬ : M ⊭ ¬ A → M ⊨ A
+  M ⊭ A = ⌜ A ⌟ M ≡ just false
 
   Valid : Formula → Set
   Valid A = ∀ M → M ⊨ A
@@ -58,34 +66,21 @@ module background (V : Set) where
   A Entails B = ∀ M → M ⊨ A → M ⊨ B
 
   _≣_ : Formula → Formula → Set
-  A ≣ B = A Entails B × B Entails A
+  A ≣ B = ∀ M → (M ⊨ A → M ⊨ B) × (M ⊨ B → M ⊨ A)
 
   infixl 4 _≣_
 
   ∧¬ : A ∧ ¬ A ≣ ⊥
-  proj₁ ∧¬ M (⊨-∧ x (⊨-¬ x₁)) = ⊥-elim (x₁ x)
-  proj₂ ∧¬ M ()
+  ∧¬ {A} M with ⌜ A ⌟ M
+  ... | just false = id , id
+  ... | just true = id , id
+  ... | nothing = (λ ()) , λ ()
 
   ¬¬-elim : ¬ ¬ A ≣ A
-  proj₁ ¬¬-elim M (⊨-¬ x) = ?
-  proj₂ ¬¬-elim M x       = ⊨-¬ λ { (⊨-¬ y) → y x }
-
-  ∧⊥≣⊥ : A ∧ ⊥ ≣ ⊥
-  proj₁ ∧⊥≣⊥ M (⊨-∧ x ())
-  proj₂ ∧⊥≣⊥ M ()
-
-  ∧-distribʳ-∨ : (A ∨ B) ∧ C ≣ (A ∧ C) ∨ (B ∧ C)
-  proj₁ ∧-distribʳ-∨ M (⊨-∧ (⊨-inl x) y) = ⊨-inl (⊨-∧ x y)
-  proj₁ ∧-distribʳ-∨ M (⊨-∧ (⊨-inr x) y) = ⊨-inr (⊨-∧ x y)
-  proj₂ ∧-distribʳ-∨ M (⊨-inl (⊨-∧ x y)) = ⊨-∧ (⊨-inl x) y
-  proj₂ ∧-distribʳ-∨ M (⊨-inr (⊨-∧ x y)) = ⊨-∧ (⊨-inr x) y
-
-  ¬-distrib-∧ : ¬ (A ∧ B) ≣ ¬ A ∨ ¬ B
-  proj₁ ¬-distrib-∧ M (⊨-¬ x) = {! !}
-  proj₂ ¬-distrib-∧ M (⊨-inl x) = ⊨-¬ λ { (⊨-∧ x₁ x₂) → {! !} }
-  proj₂ ¬-distrib-∧ M (⊨-inr x) = ⊨-¬ λ { (⊨-∧ x₁ x₂) → {! !} }
-
--- --   ⌈_⌋ : Formula → (V → Maybe Bool)
+  ¬¬-elim {A} M with ⌜ A ⌟ M
+  ... | just false = id , id
+  ... | just true = id , id
+  ... | nothing = (λ ()) , λ ()
 
 
 
