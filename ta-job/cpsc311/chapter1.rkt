@@ -46,7 +46,7 @@
       (let
         ([l (s-exp->list s)])
         (case (s-exp->symbol (first l))
-          ['+ (plusE (parse (second l)) (parse (third l)))]
+          ['+  (plusE (parse (second l)) (parse (third l)))]
           ['if (condE (parse (second l)) (parse (third l)) (parse (fourth l)))]
           [else (error 'parse "not an addition")]
           )
@@ -55,4 +55,3 @@
 
 (parse `{if #t 5 6})
 
-#| #1| (test/exn (parse `{/ 1 2}) "") |1# |#

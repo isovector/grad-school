@@ -2,10 +2,11 @@ open import Data.Nat
 
 module background (V : Set) where
   open import Agda.Primitive
+
   open import Data.Bool
     using (Bool; true; false; not)
     renaming (_∧_ to and; _∨_ to or)
-  open import Data.Maybe
+  open import Data.Maybe using (Maybe; just; ap; nothing)
   open import Relation.Binary.PropositionalEquality
   open import Data.Product hiding (_<*>_; map)
   import Relation.Nullary as Type
@@ -70,6 +71,32 @@ module background (V : Set) where
 
   infixl 4 _≣_
 
+  ≣-refl : A ≣ A
+  proj₁ (≣-refl M) = id
+  proj₂ (≣-refl M) = id
+
+  ≣-sym : A ≣ B → B ≣ A
+  ≣-sym x M with x M
+  ... | fst , snd = snd , fst
+
+  ≣-trans : A ≣ B → B ≣ C → A ≣ C
+  ≣-trans A≣B B≣C M with A≣B M | B≣C M
+  ... | ab₁ , ab₂ | bc₁ , bc₂ = bc₁ ∘ ab₁ , ab₂ ∘ bc₂
+
+  open import Relation.Binary
+
+  ≣-equiv : IsEquivalence _≣_
+  IsEquivalence.refl  ≣-equiv {A} = ≣-refl {A}
+  IsEquivalence.sym   ≣-equiv {A} {B} = ≣-sym {A} {B}
+  IsEquivalence.trans ≣-equiv {A} {B} {C} = ≣-trans {A} {B} {C}
+
+  ≣-setoid : Setoid lzero lzero
+  Setoid.Carrier ≣-setoid = Formula
+  Setoid._≈_ ≣-setoid = _≣_
+  Setoid.isEquivalence ≣-setoid = ≣-equiv
+
+  open import Relation.Binary.Reasoning.Setoid (≣-setoid)
+
   ∧¬ : A ∧ ¬ A ≣ ⊥
   ∧¬ {A} M with ⌜ A ⌟ M
   ... | just false = id , id
@@ -81,6 +108,10 @@ module background (V : Set) where
   ... | just false = id , id
   ... | just true = id , id
   ... | nothing = (λ ()) , λ ()
+
+  ∧-comm : A ∧ B ≣ B ∧ A
+  proj₁ (∧-comm {A} {B} M) x = {! !}
+  proj₂ (∧-comm {A} {B} M) x = {! !}
 
 
 
