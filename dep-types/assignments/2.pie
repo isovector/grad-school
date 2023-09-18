@@ -133,12 +133,32 @@
 ;;  (max 4 2) ==> 4
 ;;  (max 0 5) ==> 5
 ;;  (max 4 4) ==> 4
-(claim max
-  (-> Nat Nat
-    Nat))
 
-(define max (λ (x)
-  (rec-Nat x id (λ (x max y) (suc (which-Nat y x max))))))
+;; The implementation here is tricky; we'd like to do mutual induction
+;; on x and y, but pie is silly and doesn't allow for such.
+;;
+;; Instead, we can do induction only on one variable a time, so we must factor
+;; out the recursion. We know ∀y. max 0 y = y, so this gives us the base case
+;; when doing induction on y.
+;;
+;; Otherwise, we'd like:
+;;
+;;    max (suc x) zero    = suc x
+;;    max (suc x) (suc y) = suc (max x y)
+;;
+;; The only trick here is to get the recursive call to max; but notice that on
+;; the left we have matched on `max (suc n)`, while on the right we recurse
+;; with `max n`. This is the recursion "flavor" of rec-Nat.
+;;
+;; rec-Nat gives us the predecessor which we need for the y = zero case, and
+;; then `max n` as our second parameter. Putting together all the pieces:
+(claim max-ind (-> Nat (-> Nat Nat) Nat Nat))
+(define max-ind
+  (λ (x max y) (suc (which-Nat y x max))))
+
+(claim max
+  (-> Nat Nat Nat))
+(define max (λ (x) (rec-Nat x id max-ind)))
 
 (check-same Nat (max 3 5) 5)
 (check-same Nat (max 4 2) 4)
@@ -152,12 +172,18 @@
 ;;  (min 12 0) ==> 0
 ;;  (min 9 9) ==> 9
 ;;  (min 8 2) ==> 2
-(claim min
-  (-> Nat Nat
-    Nat))
 
+;; The recursion here is very similar to max, except in both base cases, we'd
+;; like to return zero.
+(claim min-ind (-> Nat (-> Nat Nat) Nat Nat))
+(define min-ind
+  (λ (x min y)
+    (which-Nat y zero (λ (y) (suc (min y))))))
+
+(claim min
+  (-> Nat Nat Nat))
 (define min (λ (x)
-  (rec-Nat x (const zero) (λ (x min y) (which-Nat y zero (λ (y) (suc (min y))))))))
+  (rec-Nat x (const zero) min-ind)))
 
 (check-same Nat (min 4 9) 4)
 (check-same Nat (min 12 0) 0)
