@@ -136,16 +136,10 @@
 (claim max
   (-> Nat Nat
     Nat))
-;; This one gave me some trouble; I'd like to express it via a fixpoint, but we don't ;; have any ability to do that.
-;;
-;; So instead, break the problem into two---do (monus x y) and see if that's 0.
-;; If so, y was the bigger term. Otherwise it was x.
-;;
-;; This involves building the monus via (iter-Nat) (details about why this is
-;; the right choice are below), and then inspecting its constructor with
-;; which-Nat.
-(define max (λ (x y)
-  (which-Nat (iter-Nat x y sub1) x (const y))))
+
+(define max (λ (x)
+  (rec-Nat x id (λ (x max y) (suc (which-Nat y x max))))))
+
 (check-same Nat (max 3 5) 5)
 (check-same Nat (max 4 2) 4)
 (check-same Nat (max 0 5) 5)
@@ -161,9 +155,10 @@
 (claim min
   (-> Nat Nat
     Nat))
-;; Dual to max, except that we switch whether we return x or y.
-(define min (λ (x y)
-  (which-Nat (iter-Nat x y sub1) y (const x))))
+
+(define min (λ (x)
+  (rec-Nat x (const zero) (λ (x min y) (which-Nat y zero (λ (y) (suc (min y))))))))
+
 (check-same Nat (min 4 9) 4)
 (check-same Nat (min 12 0) 0)
 (check-same Nat (min 9 9) 9)
