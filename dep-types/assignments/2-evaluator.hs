@@ -1,106 +1,107 @@
+{-# LANGUAGE DeriveFunctor              #-}
+{-# LANGUAGE DerivingStrategies         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# OPTIONS_GHC -Wall                   #-}
+
 module Main where
 
--- Declaring a newtype keeps us from confusing the two ways that
--- strings are used here: as messages to the user, and as names.
+import Data.String
+import Data.Bifunctor (second)
+
 newtype Name = Name String
-  deriving (Eq, Ord, Show)
+  deriving newtype (Eq, Ord, Show, IsString)
 
 -- The expressions are similar to previous arithmetic expressions, but
 -- now they have functions and variables as well.
-data Expr = Var Name
-          | App Expr Expr
-          | Lambda Name Expr
-          | CstI Integer
-          | Plus Expr Expr
-  deriving (Eq, Show)
+data Expr a
+  = Var a
+  | App (Expr a) (Expr a)
+  | Lambda a (Expr a)
+  | CstI Integer
+  | Plus (Expr a) (Expr a)
+  deriving (Eq, Show, Functor)
 
 -- There are two values: closures, which are the values of functions,
 -- and integers.
-data Value = Closure Env Name Expr
-           | IntegerVal Integer
-  deriving (Eq, Show)
+data Value a
+  = Closure (Env a) a (Expr a)
+  | IntegerVal Integer
+  deriving (Eq, Show, Functor)
 
 newtype Message = Message String
   deriving Show
 
+newtype Env a = Env [(a, Value a)]
+  deriving stock (Functor)
+  deriving newtype (Eq, Show, Semigroup, Monoid)
 
--- The values of variables are looked up in an environment. This list
--- goes backwards: earlier entries take precedence over later
--- entries. In the environment
---   Env [(Name "x", IntegerVal 3), (Name "x", IntegerVal 5)]
--- the variable "x" has value 3.
-newtype Env = Env [(Name, Value)]
-  deriving (Eq, Show)
-
--- The initial environment is empty
-initEnv :: Env
-initEnv = Env []
+type ErrorM = Either Message
 
 
-extend :: Env -> Name -> Value -> Env
+extend :: Env a -> a -> Value a -> Env a
 extend (Env env) x v = Env ((x, v) : env)
 
-failure :: String -> Either Message a
-failure msg = Left (Message msg)
+failure :: String -> ErrorM a
+failure = Left . Message
 
-lookupVar :: Env -> Name -> Either Message Value
-lookupVar (Env []) x = failure ("Unbound: " ++ show x)
+lookupVar :: (Eq a, Show a) => Env a -> a -> ErrorM (Value a)
+lookupVar (Env []) x = failure $ "Unbound: " ++ show x
 lookupVar (Env ((y, val) : env)) x
-  | x == y = error "TODO"
+  | x == y = Right val
   | otherwise = lookupVar (Env env) x
 
+asInt :: Value a -> ErrorM Integer
+asInt (IntegerVal i) = pure i
+asInt (Closure _ _ _) = failure "not an integer!"
+
+asClosure :: Value a -> ErrorM (Env a, a, Expr a)
+asClosure (IntegerVal _) = failure "not a lambda"
+asClosure (Closure a b c) = pure (a, b, c)
 
 
-eval :: Env -> Expr -> Either Message Value
+eval :: (Eq a, Show a) => Env a -> Expr a -> ErrorM (Value a)
 eval env (Var x) = lookupVar env x
-eval env (App rator rand) =
-  error "TODO"
+eval env (App rator rand) = do
+  (env', name, body) <- asClosure =<< eval env rator
+  a <- eval env rand
+  eval (extend env' name a) body
 eval env (Lambda x body) =
-  error "TODO"
-eval env (CstI i) =
-  error "TODO"
-eval env (Plus e1 e2) =
-  error "TODO"
+  pure $ Closure env x body
+eval _ (CstI i) = pure $ IntegerVal i
+eval env (Plus e1 e2) = do
+  v1 <- asInt =<< eval env e1
+  v2 <- asInt =<< eval env e2
+  pure $ IntegerVal $ v1 + v2
 
+data Bound a
+  = Free a
+  | Bound Int
+  deriving (Eq, Ord, Show)
 
-doApply :: Value -> Value -> Either Message Value
-doApply (Closure env x body) arg =
-  error "TODO"
-doApply notFun arg =
-  failure ("Not fun: " ++ show notFun)
-
-
-doPlus :: Value -> Value -> Either Message Value
-doPlus (IntegerVal i1) (IntegerVal i2) =
-  error "TODO"
-doPlus other1 other2 =
-  failure ("One of these is not an integer: " ++
-           show other1 ++ " " ++ show other2)
-
-alphaEquiv :: Expr -> Expr -> Bool
-alphaEquiv e1 e2 = helper 0 [] e1 [] e2
+debruijnify :: forall a. Eq a => Expr a -> Expr (Bound a)
+debruijnify = go mempty
   where
-    -- More cases are necessary in this function
-    helper i xs (Var x) ys (Var y) =
-      case (lookup x xs, lookup y ys) of
-        (Nothing, Nothing) -> x == y
-        (Just n, Just m) -> n == m
-        _ -> False
-    helper i xs (App f1 a1) ys (App f2 a2) =
-      error "TODO"
-    helper i xs (Lambda x e1) ys (Lambda y e2) =
-      error "TODO"
-    helper _ _ _ _ _ = False
+    go :: [(a, Int)] -> Expr a -> Expr (Bound a)
+    go env (Var n)      = Var $ maybe (Free n) (Bound) $ lookup n env
+    go env (App f a)    = App (go env f) (go env a)
+    go env (Lambda n b) = Lambda (Bound 0) (go ((n, 0) : fmap (second (+ 1)) env) b)
+    go env (Plus e1 e2) = Plus (go env e1) (go env e2)
+    go _   (CstI i)     = CstI i
+
+
+alphaEquiv :: Eq a => Expr a -> Expr a -> Bool
+alphaEquiv a b = debruijnify a == debruijnify b
 
 
 ---------------------------------------
 -- Test code begins here.
 ---------------------------------------
 
-define :: Env -> Name -> Expr -> Either Message Env
-define env x e =
-  do val <- eval env e
-     return (extend env x val)
+define :: (Eq a, Show a) => Env a -> a -> Expr a -> ErrorM (Env a)
+define env x e = do
+  val <- eval env e
+  pure $ extend env x val
 
 
 -- Church numerals are a representation of numbers as functions.
@@ -110,24 +111,24 @@ define env x e =
 -- that 3 is λ f . λ x . f (f (f x)).
 --
 -- Due to shadowing, Church numerals are a nice way to test evaluators.
-defineChurchNums :: Env -> Either Message Env
-defineChurchNums env =
-  do env1 <- define env (Name "zero")
+defineChurchNums :: Env Name -> ErrorM (Env Name)
+defineChurchNums env = do
+  env1 <- define env (Name "zero")
                (Lambda (Name "f")
                 (Lambda (Name "x")
                  (Var (Name "x"))))
-     env2 <- define env1 (Name "add1")
+  env2 <- define env1 (Name "add1")
                (Lambda (Name "n")
                 (Lambda (Name "f")
                  (Lambda (Name "x")
                   (App (Var (Name "f"))
                    (App (App (Var (Name "n")) (Var (Name "f")))
                     (Var (Name "x")))))))
-     return env2
+  pure env2
 
 
 
-defineChurchAdd :: Env -> Either Message Env
+defineChurchAdd :: Env Name -> ErrorM (Env Name)
 defineChurchAdd env =
   define env (Name "+")
     (Lambda (Name "j")
@@ -138,15 +139,15 @@ defineChurchAdd env =
               (App (App (Var (Name "k")) (Var (Name "f")))
                 (Var (Name "x"))))))))
 
-toChurch :: Integer -> Expr
+toChurch :: Integer -> Expr Name
 toChurch n
   | n <= 0 = Var (Name "zero")
   | otherwise = App (Var (Name "add1")) (toChurch (n - 1))
 
-testValIs :: String -> (Env -> Either Message Env) -> Expr -> Value -> IO ()
+testValIs :: String -> (Env Name -> ErrorM (Env Name)) -> Expr Name -> Value Name -> IO ()
 testValIs name setup expr wanted =
   do putStr (name ++ ": ")
-     case setup initEnv of
+     case setup mempty of
        Left (Message err) -> error err
        Right env ->
          case eval env expr of
@@ -156,25 +157,29 @@ testValIs name setup expr wanted =
                then putStrLn "Success"
                else putStrLn "Failed"
 
+testBoolIs :: Eq a => String -> a -> a -> IO ()
 testBoolIs name b wanted =
   do putStr (name ++ ": ")
      if b == wanted then putStrLn "Success" else putStrLn "Failed"
 
+testTrue :: String -> Bool -> IO ()
 testTrue name b = testBoolIs name b True
+
+testFalse :: String -> Bool -> IO ()
 testFalse name b = testBoolIs name b False
 
 
-noSetup :: Env -> Either Message Env
+noSetup :: Env a -> ErrorM (Env a)
 noSetup env = Right env
 
 main :: IO ()
 main =
   do testValIs "identity" noSetup
        (Lambda (Name "x") (Var (Name "x")))
-       (Closure initEnv (Name "x") (Var (Name "x")))
+       (Closure mempty (Name "x") (Var (Name "x")))
      testValIs "shadowing" noSetup
        (Lambda (Name "x") (Lambda (Name "x") (Lambda (Name "y") (App (Var (Name "y")) (Var (Name "x"))))))
-       (Closure initEnv (Name "x") (Lambda (Name "x") (Lambda (Name "y") (App (Var (Name "y")) (Var (Name "x"))))))
+       (Closure mempty (Name "x") (Lambda (Name "x") (Lambda (Name "y") (App (Var (Name "y")) (Var (Name "x"))))))
      testValIs "Church 3" defineChurchNums
        (toChurch 3)
        (Closure (Env [ ( Name "n"
