@@ -29,4 +29,8 @@ eta:
 ---
 
 
+We have a "conv" law:
+
+"conv" e : B × A ≡ B → e : A
+
 
