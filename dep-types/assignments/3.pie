@@ -1,0 +1,219 @@
+#lang pie
+
+;; In part I, for each claim, write a definition that Pie
+;; accepts.
+;;
+;; In part II, some tasks do not have claims. For these tasks, please
+;; write a suitable type as a claim, and then write the
+;; definition. Translate each example in the assignment into a test
+;; using check-same, and write at least one additional test using
+;; check-same for each definition.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; First, some helpers that will be useful later.
+(claim +
+  (→ Nat Nat
+    Nat))
+(define +
+  (λ (j k)
+    (iter-Nat j
+      k
+      (λ (n)
+        (add1 n)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Part I
+;; 0.
+(claim first-of-three
+  (Π ((A U)
+      (B U)
+      (C U))
+    (→ (Pair A (Pair B C))
+      A)))
+(define first-of-three (λ (A B C pabc) (car pabc)))
+
+;; 1.
+(claim second-of-three
+  (Π ((A U)
+      (B U)
+      (C U))
+    (→ (Pair A (Pair B C))
+      B)))
+(define second-of-three (λ (A B C pabc) (car (cdr pabc))))
+
+;; 2.
+(claim third-of-three
+  (Π ((A U)
+      (B U)
+      (C U))
+    (→ (Pair A (Pair B C))
+      C)))
+(define third-of-three (λ (A B C pabc) (cdr (cdr pabc))))
+
+;; 3.
+(claim left-rebalance
+  (Π ((A U)
+      (B U)
+      (C U)
+      (D U))
+    (→ (Pair A (Pair B (Pair C D)))
+      (Pair (Pair A B) (Pair C D)))))
+(define left-rebalance (λ (A B C D pabcd) (cons (cons (car pabcd) (car (cdr pabcd))) (cdr (cdr pabcd)))))
+
+;; 4.
+(claim change-pair
+  (Π ((A U)
+      (B U)
+      (C U)
+      (D U))
+   (→ (→ A C)
+      (→ B D)
+      (Pair A B)
+     (Pair C D))))
+(define change-pair (λ (A B C D fac fbd pab) (cons (fac (car pab)) (fbd (cdr pab)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; Part II
+
+
+;;; 5. Write a function that finds the length of any list
+;;; Examples:
+;;;  (length Atom nil) ==> 0
+;;;  (length Atom (:: 'gule-ærter (:: 'tarteletter nil))) ==> 2
+(claim length
+  (Π ((E U))
+    (→ (List E)
+      Nat)))
+(define length (λ (E l) (rec-List l zero (λ (_ _ n) (add1 n)))))
+
+
+;;; 6. Write a function that finds the sum of the entries in a list of Nats
+;;; Examples:
+;;;  (sum-List nil) ==> 0
+;;;  (sum-List (:: 3 (:: 39 nil))) ==> 42
+(claim sum-List (→ (List Nat) Nat))
+(define sum-List (λ (l) (rec-List l zero (λ (x _ n) (+ x n)))))
+
+
+;;; 7. Write a function to find the largest entry in a list of Nats.
+;;;    Please feel free to copy your implementation of max from a previous
+;;;    assignment.
+;;; Examples:
+;;;  (max-List (:: 1 (:: 3 (:: 2 nil)))) ==> 3
+;;;  (max-List nil) ==> 0
+;;;  (max-List (:: 15 (:: 2 nil))) ==> 15
+
+;; from a2
+(claim id (-> Nat Nat))
+(define id (λ (x) x))
+
+(claim max-ind (-> Nat (-> Nat Nat) Nat Nat))
+(define max-ind (λ (x max y) (add1 (which-Nat y x max))))
+
+(claim max (-> Nat Nat Nat))
+(define max (λ (x) (rec-Nat x id max-ind)))
+
+(claim max-List (→ (List Nat) Nat))
+(define max-List (λ (l) (rec-List l zero (λ (x _ n) (max x n)))))
+
+
+;;; 8. Written question:
+;;;   Is min-List (that finds the smallest entry in a (List Nat)) more
+;;;   difficult to write than max-List? If so, why? If not, please
+;;;   define it.
+
+;;; Yes; min-List is harder to write than max-List, because it cannot be done
+;;; with any meaningful semantics. In particular, we'd like min-List to satisfy
+;;; a monoid homomorphism:
+;;;
+;;; >   min-List (xs <> ys) = min-List xs <> min-List ys
+;;; >   min-List ε = ε
+;;;
+;;; where <> refers to the monoidal operation, and ε is its identity element.
+;;; For lists, we have:
+;;;
+;;; >   <> = append
+;;; >   ε  = nil
+;;;
+;;; but there is no corresponding monoid over the naturals! The best we can do
+;;; is give a semigroup:
+;;;
+;;; >   <> = min
+;;;
+;;; but since there is no biggest element in Nat, we cannot give a definition
+;;; for ε that makes the following laws hold:
+;;;
+;;; >   x <> ε = x = ε <> x
+;;;
+;;; Therefore, there is no such monoid homomorphism, and thus we cannot write
+;;; min-List.
+
+
+;;; 9. map applies a function to each element in a list, constructing a
+;;; list of the results. Define it.
+;;; Examples:
+;;;  (map Nat Nat (+ 2) (:: 1 (:: 2 (:: 3 nil)))) ==> (:: 3 (:: 4 (:: 5 nil)))
+;;;  (map (List Atom) Nat (length Atom) (:: (:: 'kiksekage (:: 'æbleskiver nil)) (:: (:: 'rødgrød-med-fløde nil) nil)))
+;;;    ==> (:: 2 (:: 1 nil))
+(claim map
+  (Π ((A U)
+      (B U))
+    (→ (→ A B) (List A)
+      (List B))))
+(define map (λ (A B f l) (rec-List l (the (List B) nil) (λ (a _ bs) (:: (f a) bs)))))
+
+;;; 10. Count the number of occurrences of 0 in a (List Nat)
+;;; Examples:
+;;;  (count-zeroes (:: 0 (:: 3 (:: 0 nil)))) ==> 2
+;;;  (count-zeroes nil) ==> 0
+(claim count-zeroes (→ (List Nat) Nat))
+(define count-zeroes (λ (l) (rec-List l zero (λ (x _ n) (+ (which-Nat x 1 (λ (x) 0)) n)))))
+
+
+
+;;; 11. Form a list from n iterations of a function to a starting value
+;;; Examples:
+;;;  (iterations Nat 5 (+ 2) 0)) ==> (:: 0 (:: 2 (:: 4 (:: 6 (:: 8 nil)))))
+;;;  (iterations (List Atom) 3 (lambda (x) (:: 'add-one x)) (:: 'zero nil)) ==>
+;;;      (:: (:: 'zero nil)
+;;;        (:: (:: 'add-one
+;;;              (:: 'zero nil))
+;;;          (:: (:: 'add-one
+;;;                (:: 'add-one
+;;;                  (:: 'zero nil)))
+;;;            nil)))
+(claim iterations
+  (Π ((E U))
+    (→ Nat (→ E E) E
+      (List E))))
+(define iterations (λ (E n f base) (iter-Nat n (the (List E) nil) (λ (x) (:: base (map E E f x))))))
+
+(check-same (List Nat) (iterations Nat 5 (+ 2) 0) (:: 0 (:: 2 (:: 4 (:: 6 (:: 8 nil))))))
+
+
+;;;; Optional challenge problems
+
+;;; The remaining tasks contribute in no way to your grade, but might
+;;; be fun to work on.
+
+;;; Return the nth element of a list, or if n is too big, return the
+;;; default.
+;;;
+;;; Examples:
+;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 0) ==> 'hi
+;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 1) ==> 'there
+;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 2) ==> 'nope
+;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 3) ==> 'nope
+;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 30) ==> 'nope
+(claim nth
+  (Π ((E U))
+    (→ (List E) E Nat
+      E)))
+
+;;; Write a function to sort a list of Nats in ascending order
+;;; Examples:
+;;;  (sort (:: 3 (:: 99 (:: 2 nil)))) ==> (:: 2 (:: 3 (:: 99 nil)))
+;;;  (sort (:: 2 (:: 34 (:: 2 (:: 34 nil))))) ==> (:: 2 (:: 2 (:: 34 (:: 34 nil))))
+(claim sort
+  (→ (List Nat)
+    (List Nat)))
