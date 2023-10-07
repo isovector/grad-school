@@ -205,10 +205,24 @@
 ;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 2) ==> 'nope
 ;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 3) ==> 'nope
 ;;;   (nth Atom (:: 'hi (:: 'there nil)) 'nope 30) ==> 'nope
+(claim ltail
+  (Π ((E U))
+    (→ (List E)
+      (List E))))
+(define ltail (λ (E l) (rec-List l (the (List E) nil) (λ (_ ls _) ls))))
+
+
+(claim drop
+  (Π ((E U))
+    (→ Nat (List E)
+      (List E))))
+(define drop (λ (E n l) (iter-Nat n l (ltail E))))
+
 (claim nth
   (Π ((E U))
     (→ (List E) E Nat
       E)))
+(define nth (λ (E l e n) (rec-List (drop E n l) e (λ (h _ _) h))))
 
 ;;; Write a function to sort a list of Nats in ascending order
 ;;; Examples:
