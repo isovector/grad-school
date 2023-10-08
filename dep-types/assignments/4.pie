@@ -1,0 +1,277 @@
+#lang pie
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Here are some definitions that will be used later
+
+(claim +-step
+  (-> Nat
+    Nat))
+(define +-step
+  (λ (n)
+    (add1 n)))
+
+(claim +
+  (-> Nat Nat
+    Nat))
+(define +
+  (λ (n m)
+    (iter-Nat n
+        m
+        +-step)))
+
+(claim double
+  (-> Nat
+    Nat))
+(define double
+  (λ (n)
+    (iter-Nat n
+        0
+        (+ 2))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; The assignment
+;;
+;; Please implement a definition for each claim, and uncomment all
+;; tests before submitting.
+
+;; 1. replicate makes how-many copies of an E
+(claim replicate
+  (Π ((E U)
+      (how-many Nat))
+    (-> E
+      (Vec E how-many))))
+(define replicate (λ (E n e)
+  (ind-Nat n (λ (n) (Vec E n)) vecnil (λ (_ z) (vec:: e z)))))
+
+(check-same (Vec Atom 4)
+  (replicate Atom 4 'champignon)
+  (vec:: 'champignon
+    (vec:: 'champignon
+      (vec:: 'champignon
+        (vec:: 'champignon vecnil)))))
+(check-same (Vec (List Nat) 2)
+  (replicate (List Nat) 2 (:: 1 (:: 2 nil)))
+  (vec:: (:: 1
+           (:: 2 nil))
+    (vec:: (:: 1
+             (:: 2 nil))
+      vecnil)))
+
+;; 2. Select a name and write a claim and a definition for a function
+;;    that finds the smallest entry in a non-empty Vec of Nats.
+
+; from a2
+(claim min-ind (-> Nat (-> Nat Nat) Nat Nat))
+(define min-ind
+  (λ (x min y)
+    (which-Nat y zero (λ (y) (add1 (min y))))))
+
+(claim const (-> Nat Nat Nat))
+(define const (λ (x y) x))
+
+(claim min
+  (-> Nat Nat Nat))
+(define min (λ (x)
+  (rec-Nat x (const zero) min-ind)))
+
+(claim min-List (Π ((n Nat)) (-> (Vec Nat (add1 n)) Nat)))
+(define min-List
+  (λ (n v)
+    (ind-Vec n (tail v)
+      (λ (k x) Nat)
+      (head v)
+      (λ (_ e _ x) (min e x)))))
+
+(check-same Nat
+  (min-List 3
+    (vec:: 5 (vec:: 2 (vec:: 4 (vec:: 3 vecnil)))))
+  2)
+(check-same Nat
+  (min-List 3
+    (vec:: 5 (vec:: 2 (vec:: 4 (vec:: 0 vecnil)))))
+  0)
+
+;; 3. map-Vec is like map from last time, but it works on Vec instead of List.
+(claim map-Vec
+  (Π ((A U)
+      (B U)
+      (n Nat))
+    (-> (-> A
+          B)
+        (Vec A n)
+      (Vec B n))))
+(define map-Vec (λ (A B n f v)
+  (ind-Vec n v
+    (λ (k _) (Vec B k))
+    vecnil
+    (λ (_ e _ v) (vec:: (f e) v)))))
+
+
+;; 4. zip-with-Vec combines two Vecs, one entry at a time, using some function.
+(claim zip-with-Vec
+  (Π ((A U)
+      (B U)
+      (C U)
+      (n Nat))
+    (-> (-> A B
+          C)
+        (Vec A n)
+        (Vec B n)
+      (Vec C n))))
+(define zip-with-Vec
+  (λ (A B C n f as)
+    (ind-Vec n as
+      (λ (k vs) (-> (Vec B k) (Vec C k)))
+      (λ (_) vecnil)
+      (λ (_ a _ fbc bs)
+        (vec:: (f a (head bs)) (fbc (tail bs)))))))
+
+(check-same (Vec (Pair Nat Atom) 2)
+  (vec:: (cons 2 'chicken-of-the-woods)
+    (vec:: (cons 22 'hen-of-woods) vecnil))
+  (zip-with-Vec Nat Atom (Pair Nat Atom) 2
+    (lambda (n s)
+      (cons n s))
+    (vec:: 2
+      (vec:: 22 vecnil))
+    (vec:: 'chicken-of-the-woods
+      (vec:: 'hen-of-woods vecnil))))
+
+;; 5. snoc-Vec adds to the back of a Vec
+(claim snoc-Vec
+  (Π ((E U)
+      (n Nat))
+    (-> (Vec E n) E
+      (Vec E (add1 n)))))
+(define snoc-Vec
+  (λ (E n v b)
+     (ind-Vec n v
+      (λ (k _) (Vec E (add1 k)))
+      (vec:: b vecnil)
+      (λ (_ e _ x) (vec:: e x)))))
+
+(check-same (Vec Atom 2)
+  (vec:: 'pea
+    (vec:: 'carrot vecnil))
+  (snoc-Vec Atom 1
+    (vec:: 'pea vecnil)
+    'carrot))
+
+
+;; 6. vec->list computes a List with the same entries in the same order as a Vec
+(claim vec->list
+  (Π ((E U)
+      (n Nat))
+    (-> (Vec E n)
+      (List E))))
+(define vec->list
+  (λ (E n v)
+    (ind-Vec n v
+      (λ (_ _) (List E))
+      nil
+      (λ (_ e _ es) (:: e es)))))
+
+(check-same (List Atom)
+  (vec->list Atom 2
+    (vec:: 'flour
+      (vec:: 'shortening vecnil)))
+  (:: 'flour
+    (:: 'shortening nil)))
+
+(check-same (List Nat)
+  (vec->list Nat 3 (vec:: 7 (vec:: 9 (vec:: 13 vecnil))))
+  (:: 7 (:: 9 (:: 13 nil))))
+
+;; 7. reverse-Vec constructs a new Vec of the same length, with the entries
+;;    in the opposite order.
+(claim reverse-Vec
+  (Π ((E U)
+      (n Nat))
+    (-> (Vec E n)
+      (Vec E n))))
+(define reverse-Vec
+  (λ (E n v)
+    (ind-Vec n v
+      (λ (k _) (Vec E k))
+      vecnil
+      (λ (k e _ es) (snoc-Vec E k es e)))))
+
+(check-same (Vec Atom 3)
+  (vec:: 'porcini
+    (vec:: 'crimini
+      (vec:: 'oyster vecnil)))
+  (reverse-Vec Atom 3
+    (vec:: 'oyster
+      (vec:: 'crimini
+        (vec:: 'porcini vecnil)))))
+
+;; 8. doubles provides the entries in its argument, each twice
+(claim doubles
+  (Π ((E U)
+      (n Nat))
+    (-> (Vec E n)
+      (Vec E (double n)))))
+
+(define doubles (λ (E n v)
+  (ind-Vec n v
+    (λ (k _) (Vec E (double k)))
+    vecnil
+    (λ (_ e _ v) (vec:: e (vec:: e v))))))
+
+(check-same (Vec Atom 4)
+  (doubles Atom 2
+    (vec:: 'chantrelle
+      (vec:: 'shiitake vecnil)))
+  (vec:: 'chantrelle
+    (vec:: 'chantrelle
+      (vec:: 'shiitake
+        (vec:: 'shiitake vecnil)))))
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Optional challenge problems
+
+;; These problems do not contribute to your grade in any way, but are
+;; present in case you're having fun and want to continue.
+
+(claim append-Vec
+  (Π ((E U)
+      (n Nat)
+      (m Nat))
+    (-> (Vec E n) (Vec E m)
+      (Vec E (+ n m)))))
+#;
+(check-same (Vec Atom 5)
+  (vec:: 'portobello
+    (vec:: 'bay-bolete
+      (vec:: 'funnel-chantrelle
+        (vec:: 'sheathed-woodtuft
+          (vec:: 'puffball vecnil)))))
+  (append-Vec Atom 3 2
+    (vec:: 'portobello
+      (vec:: 'bay-bolete
+        (vec:: 'funnel-chantrelle vecnil)))
+    (vec:: 'sheathed-woodtuft
+      (vec:: 'puffball vecnil))))
+
+
+(claim transpose
+  (Π ((E U)
+      (n Nat)
+      (m Nat))
+   (-> (Vec (Vec E m) n)
+     (Vec (Vec E n) m))))
+
+#;
+(check-same (Vec (Vec Atom 2) 3)
+  (transpose Atom 2 3
+    (vec:: (vec:: 'a (vec:: 'b (vec:: 'c vecnil)))
+      (vec:: (vec:: 'd (vec:: 'e (vec:: 'f vecnil)))
+        vecnil)))
+  (vec:: (vec:: 'a (vec:: 'd vecnil))
+    (vec:: (vec:: 'b (vec:: 'e vecnil))
+      (vec:: (vec:: 'c (vec:: 'f vecnil))
+        vecnil))))
