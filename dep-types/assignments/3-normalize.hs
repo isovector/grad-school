@@ -304,6 +304,17 @@ main =
          (Lambda (Name "d")
           (Var (Name "a"))))
 
+     testNormIs "(cdr (cons 2 4)) = 2" noSetup
+       (Second (Cons (CstI 2) (CstI 4)))
+       (CstI 2)
+     testNormIs "(cdr (cons a d)) = a" noSetup
+       (Lambda (Name "a")
+         (Lambda (Name "d")
+          (Second (Cons (Var (Name "a")) (Var (Name "d"))))))
+       (Lambda (Name "a")
+         (Lambda (Name "d")
+          (Var (Name "a"))))
+
      testNormIs "(cons a d) = (cons a d)" noSetup
         (Cons (Var (Name "a")) (Var (Name "d")))
         (Cons (Var (Name "a")) (Var (Name "d")))
