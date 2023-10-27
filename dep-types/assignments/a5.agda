@@ -1,8 +1,10 @@
 module a5 where
 
 open import Data.Nat
+  hiding (_*_)
 
-open import Relation.Binary.PropositionalEquality using (_≡_; refl)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans)
+  renaming (sym to symm)
 
 pattern same x = refl {x = x}
 pattern add1 n = suc n
@@ -36,9 +38,9 @@ which-Nat (add1 n) x f = f n
 +-right-zero : (n : ℕ) → n + 0 ≡ n
 +-right-zero n = ind-Nat n (λ n → n + 0 ≡ n) (same 0) λ { n₁ x → cong x step-+ }
 
-+-right-add1 : (n m : ℕ) → n + add1 m ≡ add1 (n + m)
++-right-add1 : (n m : ℕ) → add1 (n + m) ≡ n + add1 m
 +-right-add1 n m =
-  (ind-Nat n (λ n → n + add1 m ≡ add1 (n + m)) (same (add1 m)) (λ x x → cong x step-+  ))
+  symm (ind-Nat n (λ n → n + add1 m ≡ add1 (n + m)) (same (add1 m)) (λ x x → cong x step-+  ))
 
 add1-sub-almost-inverse : (n : ℕ) → add1 (sub1 n) ≡ which-Nat n 1 (λ n-1 → n)
 add1-sub-almost-inverse n =
@@ -62,14 +64,23 @@ max-idempotent n = ind-Nat n (λ n → n ≡ max n n) (same 0) λ n₁ x → con
 max-zero-right : (n : ℕ) → max n 0 ≡ n
 max-zero-right n = ind-Nat n (λ n → max n 0 ≡ n) (same 0) (λ x _ → same (add1 x))
 
+_*_ : ℕ → ℕ → ℕ
+n * j = rec-Nat n 0 (λ n-1ig *-of-n-1 → j + *-of-n-1)
 
--- (ind-Nat target motive base step) → (motive target)
++-comm : (n m : ℕ) → n + m ≡ m + n
++-comm n m = ind-Nat n (λ n → n + m ≡ m + n ) (symm (+-right-zero m)) λ { n x → trans (cong x step-+) (+-right-add1 m n)  }
 
---   target : Nat
---   motive : (-> Nat U)
---   base : (motive zero)
---   	step	 	:
--- (Π ((n Nat))
---   (-> (motive n)
---     (motive (suc n))))
+*-zero-l : (n : ℕ) → 0 * n ≡ 0
+*-zero-l n = ind-Nat n (λ n → 0 * n ≡ 0) (same 0) (λ n₁ x → x)
+
+*-one-l : (n : ℕ) → 1 * n ≡ n
+*-one-l n = ind-Nat n (λ n → 1 * n ≡ n) (same 0) (λ n₁ x → cong x step-+)
+
+*-zero-r : (n : ℕ) → n * 0 ≡ 0
+*-zero-r n = ind-Nat n (λ n → n * 0 ≡ 0) (same 0) (λ n₁ x → x)
+
+
+reassoc : (a b c : ℕ) → a + (b + c) ≡ b + (a + c)
+reassoc a b c = trans (+-assoc a b c) (trans (cong (+-comm a b) λ { φ → φ + c }) (symm (+-assoc b a c)))
+
 

@@ -1,0 +1,198 @@
+#lang pie
+
+;; Assignment 6
+;;
+;; This assignment has thirteen mandatory problems and two
+;; optional challenge problems.
+;;
+;; Because you're writing proofs, tests are not needed. If they help
+;; your understanding, though, please feel free to use tests.
+
+;; Here are some definitions to get you started.
+;; They're just like in the book.
+(claim step-+
+  (-> Nat
+    Nat))
+(define step-+
+  (λ (n)
+    (add1 n)))
+
+(claim +
+  (-> Nat Nat
+    Nat))
+
+(define +
+  (λ (n j)
+    (iter-Nat n
+         j
+         step-+)))
+
+(claim step-*
+  (-> Nat Nat Nat
+    Nat))
+
+(define step-*
+  (λ (m n-1ig *-of-n-1)
+    (+ m *-of-n-1)))
+
+(claim *
+  (-> Nat Nat
+    Nat))
+(define *
+  (λ (n j)
+    (rec-Nat n
+        0
+        (step-* j))))
+
+;;; Add your proofs from Assignment 5 here.
+(claim +-left-zero
+  (Π ((n Nat))
+    (= Nat (+ 0 n) n)))
+
+(claim +-right-zero
+  (Π ((n Nat))
+    (= Nat (+ n 0) n)))
+(define +-right-zero (λ (n) (ind-Nat n (λ (n) (= Nat (+ n 0) n)) (same 0) (λ (_ x) (cong x step-+)))))
+
+(claim +-left-add1
+  (Π ((n Nat)
+      (m Nat))
+    (= Nat (+ (add1 n) m) (add1 (+ n m)))))
+(define +-left-add1 (λ (n m) (same (add1 (+ n m)))))
+
+(claim +-right-add1
+  (Π ((n Nat)
+      (m Nat))
+    (= Nat (add1 (+ n m)) (+ n (add1 m)))))
+(define +-right-add1 (λ (n m) (symm (ind-Nat n (λ (n) (= Nat (+ n (add1 m)) (add1 (+ n m)))) (same (add1 m)) (λ (_ x) (cong x step-+))))))
+
+(claim +-associative
+  (Π ((l Nat)
+      (m Nat)
+      (r Nat))
+    (= Nat
+     (+ l (+ m r))
+     (+ (+ l m) r))))
+(define +-associative (λ (x y z) (ind-Nat x (λ (x) (= Nat (+ x (+ y z)) (+ (+ x y) z))) (same (+ y z)) (λ (n p) (cong p step-+) ))))
+
+;;;;;;;;;;
+;; Mandatory problems
+
+;; 1. Prove that addition is commutative. An operation is "commutative" if
+;;    flipping the order of arguments gives back the same answer. It is very
+;;    helpful to write a separate step with a type signature if you get stuck.
+(claim +-commutative
+  (Π ((n Nat)
+      (m Nat))
+    (= Nat (+ n m) (+ m n))))
+(define +-commutative (λ (n m) (ind-Nat n (λ (n) (= Nat (+ n m) (+ m n))) (symm (+-right-zero m)) (λ (n x) (trans (cong x step-+) (+-right-add1 m n))))))
+
+
+;; 2 and 3. Show that anything times 0 is 0, both ways around
+(claim *-left-zero
+  (Π ((n Nat))
+    (= Nat (* zero n) zero)))
+(define *-left-zero (λ (n) (ind-Nat n (λ (n) (= Nat (* zero n) zero)) (same 0) (λ (_ x) x))))
+
+(claim *-right-zero
+  (Π ((n Nat))
+    (= Nat (* n zero) zero)))
+(define *-right-zero (λ (n) (ind-Nat n (λ (n) (= Nat (* n zero) zero)) (same 0) (λ (_ x) x))))
+
+
+;; 4 and 5. Show that 1 is a left and right identity of *
+(claim *-left-1
+  (Π ((n Nat))
+    (= Nat (* 1 n) n)))
+(define *-left-1 (λ (n) (ind-Nat n (λ (n) (= Nat (* 1 n) n)) (same 0) (λ (_ x) (cong x step-+)))))
+
+(claim *-right-1
+  (Π ((n Nat))
+    (= Nat (* n 1) n)))
+(define *-right-1 (λ (n) (ind-Nat n (λ (n) (= Nat (* n 1) n)) (same 0) (λ (_ x) (cong x step-+)))))
+
+;; 6. Show that ((1 + a) * b) = b + a * b
+(claim *-left-add1
+  (Π ((a Nat)
+      (b Nat))
+    (= Nat (* (add1 a) b) (+ b (* a b)))))
+
+
+;; 7. Write this proof without using ind-Nat in your answer.
+(claim +-swap-first-two-of-three
+  (Π ((a Nat)
+      (b Nat)
+      (c Nat))
+    (= Nat
+     (+ a (+ b c))
+     (+ b (+ a c)))))
+(define +-swap-first-two-of-three (λ (a b c)
+  (trans
+    (+-associative a b c)
+    (trans
+      (cong (+-commutative a b) (the (-> Nat Nat) (λ (φ) (+ φ c))))
+      (symm (+-associative b a c))))))
+
+
+;; 8. Prove this statement.
+(claim *-right-add1
+  (Π ((a Nat)
+      (b Nat))
+    (= Nat (* a (add1 b)) (+ a (* a b)))))
+
+;; 9. Show that ind-Nat can do anything rec-Nat can do.  In the
+;;    definition of rec-Nat*, the only eliminator for Nat that you are
+;;    allowed to use is ind-Nat.
+(claim rec-Nat*
+  (Π ((X U))
+    (-> Nat
+        X
+        (-> Nat X
+            X)
+      X)))
+(define rec-Nat* (λ (X n b s) (ind-Nat n (λ (_) X) b s)))
+
+;; 10. Prove that your definition of rec-Nat* always finds the same answer
+;;     as the built-in rec-Nat. Uncomment this claim after finishing question 9.
+(claim rec-Nat*-ok
+  (Π ((X U)
+      (target Nat)
+      (base X)
+      (step (-> Nat X
+              X)))
+    (= X
+      (rec-Nat* X target base step)
+      (rec-Nat target base step))))
+(define rec-Nat*-ok (λ (X target base step)
+  (ind-Nat target (λ (target) (= X (rec-Nat* X target base step) (rec-Nat target base step)))
+           (same base)
+           (λ (n x) (cong x (the (-> X X) (λ (z) (step n z))))))))
+
+;; 11, 12, 13: Show that replace can do anything that cong, symmetry,
+;;             and trans can do. Use no eliminators other than replace
+;;             in your answer.
+(claim replace-can-cong
+  (Π ((X U)
+      (Y U)
+      (from X)
+      (to X)
+      (f (-> X
+           Y)))
+    (-> (= X from to)
+     (= Y (f from) (f to)))))
+
+(claim replace-can-symm
+  (Π ((X U)
+      (from X)
+      (to X))
+    (-> (= X from to)
+     (= X to from))))
+
+(claim replace-can-trans
+  (Π ((X U)
+      (l X)
+      (m X)
+      (r X))
+    (-> (= X l m) (= X m r)
+     (= X l r))))
+
