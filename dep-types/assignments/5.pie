@@ -1,0 +1,173 @@
+#lang pie
+
+;; Part 0
+;;
+;; Read these definitions and understand how they work. Some are familiar, but
+;; not all are defined in the same way as before. It is important that you understand
+;; them all entirely.
+
+(claim id
+  (Pi ((X U))
+    (-> X
+     X)))
+(define id
+  (λ (X)
+    (λ (x)
+      x)))
+
+(claim step-+
+  (-> Nat
+    Nat))
+(define step-+
+  (λ (n)
+    (add1 n)))
+
+(claim +
+  (-> Nat Nat
+    Nat))
+(define +
+  (λ (n k)
+    (iter-Nat n
+         k
+         step-+)))
+
+(check-same Nat 87 (+ 22 65))
+
+(claim sub1
+  (-> Nat
+    Nat))
+(define sub1
+  (λ (n)
+    (which-Nat n
+        zero
+        (λ (n-1)
+          n-1))))
+
+(check-same Nat (sub1 55) 54)
+
+(claim monus
+  (-> Nat Nat
+    Nat))
+(define monus
+  (λ (n m)
+    (iter-Nat m
+        n
+        sub1)))
+
+(check-same Nat
+  (monus 1 2)
+  0)
+
+(check-same Nat
+  (monus 10 2)
+  8)
+
+(claim step-max
+  (-> Nat
+      (-> Nat
+        Nat)
+   (-> Nat
+    Nat)))
+(define step-max
+  (λ (n-1 max-of-n-1)
+    (λ (k)
+      (which-Nat k
+           (add1 n-1)
+           (λ (k-1)
+             (add1 (max-of-n-1 k-1)))))))
+
+(claim max
+  (-> Nat Nat
+    Nat))
+(define max
+  (λ (n)
+    (rec-Nat n
+         (id Nat)
+         step-max)))
+
+(check-same Nat (max 2 5) 5)
+(check-same Nat (max 5 2) 5)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Part 1
+;;
+;; Write a definition for each claim.
+;;
+;; Think before you hack! Not all definitions require induction. It might be helpful
+;; to write a same-as chart from time to time if you get stuck.
+
+;; 1. Subtracting one undoes adding one
+(claim sub1-add1-inverse
+  (Π ((n Nat))
+    (= Nat (sub1 (add1 n)) n)))
+(define sub1-add1-inverse (λ (n) (same n)))
+
+;; 2. The identity function returns its argument unchanged
+(claim id-is-identity
+  (Π ((A U)
+      (a A))
+    (= A a (id A a))))
+(define id-is-identity (λ (A a) (same a)))
+
+;; 3. Addition is associative
+(claim +-associative
+  (Π ((x Nat)
+      (y Nat)
+      (z Nat))
+    (= Nat
+     (+ x (+ y z))
+     (+ (+ x y) z))))
+(define +-associative (λ (x y z) (ind-Nat x (λ (x) (= Nat (+ x (+ y z)) (+ (+ x y) z))) (same (+ y z)) (λ (n p) (cong p step-+) ))))
+
+;; 4. Zero is a left identity of +
+(claim +-left-zero
+  (Π ((n Nat))
+    (= Nat (+ 0 n) n)))
+(define +-left-zero (λ (n) (same n)))
+
+;; 5. Zero is a right identity of +
+(claim +-right-zero
+  (Π ((n Nat))
+    (= Nat (+ n 0) n)))
+(define +-right-zero (λ (n) (ind-Nat n (λ (n) (= Nat (+ n 0) n)) (same 0) (λ (_ x) (cong x step-+)))))
+
+;; 6. Add1 in the first argument to + can be lifted to the top level
+(claim +-left-add1
+  (Π ((n Nat)
+      (m Nat))
+    (= Nat (+ (add1 n) m) (add1 (+ n m)))))
+(define +-left-add1 (λ (n m) (same (add1 (+ n m)))))
+
+;; 7. Add1 in the second argument to + can be lifted to the top level
+(claim +-right-add1
+  (Π ((n Nat)
+      (m Nat))
+    (= Nat (+ n (add1 m)) (add1 (+ n m)))))
+(define +-right-add1 (λ (n m) (ind-Nat n (λ (n) (= Nat (+ n (add1 m)) (add1 (+ n m)))) (same (add1 m)) (λ (_ x) (cong x step-+)))))
+
+;; 8. Add1 undoes sub1, unless the argument was 0
+(claim add1-sub1-almost-inverse
+  (Π ((n Nat))
+    (= Nat (add1 (sub1 n)) (which-Nat n 1 (λ (n-1) n)))))
+(define add1-sub1-almost-inverse (λ (n) (ind-Nat n (λ (n) (= Nat (add1 (sub1 n)) (which-Nat n 1 (λ (n-1) n)))) (same 1) (λ (n _) (same (add1 n))))))
+
+
+
+;; 9. The maximum of a number and itself is itself
+(claim max-idempotent
+  (Π ((n Nat))
+    (= Nat n (max n n))))
+(define max-idempotent (λ (n) (ind-Nat n (λ (n) (= Nat n (max n n))) (same 0) (λ (_ x) (cong x step-+)))))
+
+;; 10. Zero is a left identity of max
+(claim max-zero-left
+  (Π ((n Nat))
+    (= Nat (max 0 n) n)))
+(define max-zero-left (λ (n) (same n)))
+
+;; 11. Zero is a right identity of max
+(claim max-zero-right
+  (Π ((n Nat))
+    (= Nat (max n 0) n)))
+(define max-zero-right (λ (n) (ind-Nat n (λ (n) (= Nat (max n 0) n)) (same 0) (λ (x _) (same (add1 x))))))
