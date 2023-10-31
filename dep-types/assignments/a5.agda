@@ -108,4 +108,16 @@ reassoc a b c = trans (+-assoc a b c) (trans (cong (+-comm a b) λ { φ → φ +
 *-zero-r n = ind-Nat n (λ n → n * 0 ≡ 0) (same 0) (λ n₁ x → x)
 
 
+replace : {X : Set} {from to : X}
+        → (target : from ≡ to) → (motive : X → Set) → motive from → motive to
+replace refl motive x = x
+
+replace-can-cong : (X Y : Set) → (from to : X) → (f : X → Y) → from ≡ to → f from ≡ f to
+replace-can-cong X Y from to f x = replace x (λ v → f from ≡ f v) (same (f from))
+
+replace-can-symm : (X : Set) → (from to : X) → from ≡ to → to ≡ from
+replace-can-symm X from to x = replace x (λ v → v ≡ from) (same from)
+
+replace-can-trans : (X : Set) → (l m r : X) → l ≡ m → m ≡ r → l ≡ r
+replace-can-trans X l m r lm mr = replace mr (λ v → l ≡ v) (replace lm (λ v → l ≡ v) (same l))
 

@@ -1,0 +1,303 @@
+#lang pie
+;; Note that some claims are commented out with #;. This is because
+;; they refer to things that you should define as part of solving
+;; certain problems. Make sure that they are not commented when you
+;; solve the problem.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Helpers. These are old familiar friends.
+
+(claim step-+
+  (→ Nat
+    Nat))
+(define step-+
+  (λ (n)
+    (add1 n)))
+
+(claim +
+  (→ Nat Nat
+    Nat))
+(define +
+  (λ (n m)
+    (iter-Nat n
+      m
+      step-+)))
+
+(claim map
+  (Π ((A U)
+      (B U))
+    (→ (→ A B) (List A)
+      (List B))))
+(define map
+  (λ (A B)
+    (λ (f es)
+      (rec-List es
+        (the (List B) nil)
+        (λ (x xs map-of-xs)
+          (:: (f x) map-of-xs))))))
+
+(claim append
+  (Π ((E U))
+    (→ (List E) (List E)
+      (List E))))
+(define append
+  (λ (E)
+    (λ (xs ys)
+      (rec-List xs
+        ys
+        (λ (z zs append-of-zs)
+          (:: z append-of-zs))))))
+
+(claim length
+  (Π ((E U))
+    (→ (List E)
+      Nat)))
+(define length
+  (λ (E es)
+    (rec-List es
+      0
+      (λ (x xs almost-len)
+        (add1 almost-len)))))
+
+(claim drop
+  (Π ((E U))
+    (→ Nat (List E)
+      (List E))))
+(define drop
+  (λ (E n)
+    (rec-Nat n
+      (the (→ (List E) (List E))
+        (λ (es)
+          es))
+      (λ (n-1 drop-of-n-1)
+        (λ (es)
+          (rec-List es
+            (the (List E) nil)
+            (λ (x xs ignored)
+              (drop-of-n-1 xs))))))))
+
+(claim snoc
+  (Π ((E U))
+    (→ (List E) E
+      (List E))))
+(define snoc
+  (λ (E)
+    (λ (es e)
+      (rec-List es
+        (:: e nil)
+        (λ (x xs snoc-of-xs)
+          (:: x snoc-of-xs))))))
+
+(claim reverse
+  (Π ((E U))
+    (→ (List E)
+      (List E))))
+(define reverse
+  (λ (E)
+    (λ (es)
+      (rec-List es
+        (the (List E) nil)
+        (λ (x xs reverse-of-xs)
+          (snoc E reverse-of-xs x))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Read and understand this definition. It will be used later.
+;; A list is non-empty if there exist a head and tail
+(claim Non-Empty
+  (Π ((E U))
+    (→ (List E)
+      U)))
+(define Non-Empty
+  (λ (E lst)
+    (Σ ((e E)
+        (es (List E)))
+      (= (List E) lst (:: e es)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 1: Given a proof that a list is not empty, find its first
+;; entry.
+(claim first-of-non-empty
+  (Π ((E U)
+      (es (List E)))
+    (→ (Non-Empty E es)
+      E)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 2: Given a proof that a list is not empty, find all entries
+;; but the first.
+(claim rest-of-non-empty
+  (Π ((E U)
+      (es (List E)))
+    (→ (Non-Empty E es)
+      (List E))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 3: Prove that first-of-non-empty and rest-of-non-empty make sense: combining them with
+;; the constructor :: should be equal to the original list.
+#;
+(claim first-of-non-empty-and-rest-of-non-empty-ok
+  (Π ((E U)
+      (es (List E))
+      (non-empty (Non-Empty E es)))
+    (= (List E)
+       es
+       (:: (first-of-non-empty E es non-empty)
+         (rest-of-non-empty E es non-empty)))))
+
+
+;; A definition of what it means for something to be the first entry
+;; in a list.
+(claim First-Is
+  (Π ((E U))
+    (→ E (List E)
+      U)))
+(define First-Is
+  (λ (E e es)
+    (rec-List es
+      (= Atom 'chalk 'cheese) ;; There will never be evidence for this!
+      (λ (x xs ignored-rest)
+        (= E e x)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 4: Define Member to be evidence that an entry is somewhere
+;; in a list
+(claim Member
+  (Π ((E U))
+    (→ E (List E)
+      U)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 5: Translate this statement to a type and prove it:
+;; "'fig is an entry somewhere in the list:
+;;    'avocado, 'apple, 'plum, 'fig, 'peach, 'orange"
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 6: Prove that attaching a new entry to a list with ::
+;; results in a list containing the new entry
+#;
+(claim ::-member-first
+  (Π ((E U)
+      (e E)
+      (es (List E)))
+    (Member E e (:: e es))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 7: Prove that mapping a function over a list does not change
+;; the length
+(claim map-preserves-length
+  (Π ((X U)
+      (Y U)
+      (f (→ X
+           Y))
+      (xs (List X)))
+    (= Nat 
+       (length X xs)
+       (length Y (map X Y f xs)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 8: Show that append commutes with map. That is, they can be
+;; applied in either order and get an equal answer.
+(claim append-map-append
+  (Π ((X U)
+      (Y U)
+      (f (→ X
+           Y))
+      (front (List X))
+      (back (List X)))
+    (= (List Y)
+       (append Y (map X Y f front) (map X Y f back))
+       (map X Y f (append X front back)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 9: Show that mapping twice is equal to mapping a single
+;; composed function
+(claim map-fusion
+  (Π ((X U)
+      (Y U)
+      (Z U)
+      (f (→ X
+           Y))
+      (g (→ Y
+           Z))
+      (xs (List X)))
+    (= (List Z)
+       (map Y Z g (map X Y f xs))
+       (map X Z (λ (x) (g (f x))) xs))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 10: Find a list that is the left and right identity of
+;; append
+(claim exists-neutral-append
+  (Π ((E U)
+      (es (List E)))
+    (Σ ((neutral (List E)))
+       (Pair (= (List E) es (append E neutral es))
+             (= (List E) es (append E es neutral))))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 11: Write this function using ind-Vec
+(claim map-Vec
+  (Π ((X U)
+      (Y U)
+      (len Nat))
+    (→ (→ X
+         Y)
+       (Vec X len)
+      (Vec Y len))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Problem 12: Prove that the recursive version of length for Vec finds the
+;; right answer.
+(claim length-Vec
+  (Π ((E U)
+      (len Nat))
+    (→ (Vec E len)
+      Nat)))
+(define length-Vec
+  (λ (E len es)
+    (ind-Vec len es
+      (λ (k xs) Nat)
+      0
+      (λ (k x xs length-Vec-of-xs)
+        (add1 length-Vec-of-xs)))))
+
+(claim length-correct
+  (Π ((E U)
+      (len Nat)
+      (xs (Vec E len)))
+    (= Nat (length-Vec E len xs) len)))
+
+
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Optional challenge problem:
+;;
+;; This type is a version of the Axiom of Choice. Prove that it is
+;; true in type theory.
+;;
+;; Further reading, if you're interested:
+;;  https://plato.stanford.edu/entries/axiom-choice/index.html
+;;
+;; This is the version called AC3 in that article.
+(claim choice
+  (Π ((X U)
+      (Y U)
+      ;; R is a relation over X and Y
+      (R (→ X Y
+           U)))
+    (→ (Π ((x X))
+         (Σ ((y Y))
+            (R x y)))
+      (Σ ((f (→ X
+               Y)))
+        (Π ((x X))
+           (R x (f x)))))))

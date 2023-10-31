@@ -73,7 +73,10 @@
     (= Nat
      (+ l (+ m r))
      (+ (+ l m) r))))
-(define +-associative (λ (x y z) (ind-Nat x (λ (x) (= Nat (+ x (+ y z)) (+ (+ x y) z))) (same (+ y z)) (λ (n p) (cong p step-+) ))))
+(define +-associative (λ (x y z)
+  (ind-Nat x (λ (x) (= Nat (+ x (+ y z)) (+ (+ x y) z)))
+    (same (+ y z))
+    (λ (n p) (cong p step-+) ))))
 
 ;;;;;;;;;;
 ;; Mandatory problems
@@ -85,7 +88,10 @@
   (Π ((n Nat)
       (m Nat))
     (= Nat (+ n m) (+ m n))))
-(define +-commutative (λ (n m) (ind-Nat n (λ (n) (= Nat (+ n m) (+ m n))) (symm (+-right-zero m)) (λ (n x) (trans (cong x step-+) (+-right-add1 m n))))))
+(define +-commutative (λ (n m)
+  (ind-Nat n (λ (n) (= Nat (+ n m) (+ m n)))
+    (symm (+-right-zero m))
+    (λ (n x) (trans (cong x step-+) (+-right-add1 m n))))))
 
 
 ;; 2 and 3. Show that anything times 0 is 0, both ways around
@@ -175,8 +181,8 @@
       (rec-Nat target base step))))
 (define rec-Nat*-ok (λ (X target base step)
   (ind-Nat target (λ (target) (= X (rec-Nat* X target base step) (rec-Nat target base step)))
-           (same base)
-           (λ (n x) (cong x (the (-> X X) (λ (z) (step n z))))))))
+      (same base)
+      (λ (n x) (cong x (the (-> X X) (λ (z) (step n z))))))))
 
 ;; 11, 12, 13: Show that replace can do anything that cong, symmetry,
 ;;             and trans can do. Use no eliminators other than replace
@@ -190,13 +196,16 @@
            Y)))
     (-> (= X from to)
      (= Y (f from) (f to)))))
+(define replace-can-cong (λ (X Y from to f x)
+  (replace x (λ (v) (= Y (f from) (f v))) (same (f from)))))
 
 (claim replace-can-symm
   (Π ((X U)
       (from X)
       (to X))
-    (-> (= X from to)
-     (= X to from))))
+    (-> (= X from to) (= X to from))))
+(define replace-can-symm (λ (X from to x)
+  (replace x (λ (v) (= X v from)) (same from))))
 
 (claim replace-can-trans
   (Π ((X U)
@@ -205,4 +214,7 @@
       (r X))
     (-> (= X l m) (= X m r)
      (= X l r))))
+(define replace-can-trans (λ (X l m r lm mr)
+  (replace mr (λ (v) (= X l v))
+           (replace lm (λ (v) (= X l v)) (same l)))))
 
