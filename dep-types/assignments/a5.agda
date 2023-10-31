@@ -3,7 +3,7 @@ module a5 where
 open import Data.Nat
   hiding (_*_)
 
-open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans)
+open import Relation.Binary.PropositionalEquality using (_≡_; refl; trans; module ≡-Reasoning)
   renaming (sym to symm)
 
 pattern same x = refl {x = x}
@@ -76,11 +76,36 @@ n * j = rec-Nat n 0 (λ n-1ig *-of-n-1 → j + *-of-n-1)
 *-one-l : (n : ℕ) → 1 * n ≡ n
 *-one-l n = ind-Nat n (λ n → 1 * n ≡ n) (same 0) (λ n₁ x → cong x step-+)
 
-*-zero-r : (n : ℕ) → n * 0 ≡ 0
-*-zero-r n = ind-Nat n (λ n → n * 0 ≡ 0) (same 0) (λ n₁ x → x)
-
+*-left-add1 : ∀ a b → ((1 + a) * b) ≡ b + a * b
+*-left-add1 a b = ind-Nat a (λ a → ((1 + a) * b) ≡ b + a * b) (same (b + 0)) λ { n x → cong x (b +_) }
 
 reassoc : (a b c : ℕ) → a + (b + c) ≡ b + (a + c)
 reassoc a b c = trans (+-assoc a b c) (trans (cong (+-comm a b) λ { φ → φ + c }) (symm (+-assoc b a c)))
+
+*-right-add1 : ∀ a b → a * (1 + b) ≡ a + a * b
+*-right-add1 a b =
+  ind-Nat a (λ a → a * (1 + b) ≡ a + a * b) (same 0) λ { n x →
+    trans (cong x (λ φ → add1 b + φ)) (cong (reassoc b n (n * b)) add1)
+  }
+
+*-left-add1' : ∀ a b → ((1 + a) * b) ≡ b + a * b
+*-left-add1' zero b = refl
+*-left-add1' (add1 a) b =
+  begin
+    (1 + add1 a) * b
+  ≡⟨⟩
+    b + (add1 a) * b
+  ≡⟨⟩
+    b + (b + a * b)
+  ≡⟨⟩
+    b + (b + a * b)
+  ≡⟨⟩
+    b + (add1 a * b)
+  ∎
+  where open ≡-Reasoning
+
+*-zero-r : (n : ℕ) → n * 0 ≡ 0
+*-zero-r n = ind-Nat n (λ n → n * 0 ≡ 0) (same 0) (λ n₁ x → x)
+
 
 

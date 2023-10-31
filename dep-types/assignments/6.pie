@@ -116,6 +116,8 @@
   (Π ((a Nat)
       (b Nat))
     (= Nat (* (add1 a) b) (+ b (* a b)))))
+(define *-left-add1 (λ (a b)
+  (ind-Nat a (λ (a) (= Nat (* (add1 a) b) (+ b (* a b)))) (same (+ b 0)) (λ (n x) (cong x (+ b))))))
 
 
 ;; 7. Write this proof without using ind-Nat in your answer.
@@ -139,6 +141,14 @@
   (Π ((a Nat)
       (b Nat))
     (= Nat (* a (add1 b)) (+ a (* a b)))))
+(define *-right-add1 (λ (a b)
+  (ind-Nat a
+    (λ (a) (= Nat (* a (add1 b)) (+ a (* a b))))
+    (same 0)
+    (λ ( n x)
+       (trans (cong x (+ (add1 b)))
+              (cong (+-swap-first-two-of-three b n (* n b)) step-+))))))
+
 
 ;; 9. Show that ind-Nat can do anything rec-Nat can do.  In the
 ;;    definition of rec-Nat*, the only eliminator for Nat that you are
