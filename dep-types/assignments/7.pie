@@ -121,6 +121,7 @@
       (es (List E)))
     (→ (Non-Empty E es)
       E)))
+(define first-of-non-empty (λ (E es ne) (car ne)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -131,12 +132,12 @@
       (es (List E)))
     (→ (Non-Empty E es)
       (List E))))
+(define rest-of-non-empty (λ (E es ne) (car (cdr ne))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Problem 3: Prove that first-of-non-empty and rest-of-non-empty make sense: combining them with
 ;; the constructor :: should be equal to the original list.
-#;
 (claim first-of-non-empty-and-rest-of-non-empty-ok
   (Π ((E U)
       (es (List E))
@@ -145,6 +146,7 @@
        es
        (:: (first-of-non-empty E es non-empty)
          (rest-of-non-empty E es non-empty)))))
+(define first-of-non-empty-and-rest-of-non-empty-ok (λ (E es ne) (cdr (cdr ne))))
 
 
 ;; A definition of what it means for something to be the first entry
@@ -165,24 +167,31 @@
 ;; in a list
 (claim Member
   (Π ((E U))
-    (→ E (List E)
-      U)))
+    (→ E (List E) U)))
+(define Member
+  (λ (E e es)
+    (rec-List es
+      (= Atom 'chalk 'cheese) ;; There will never be evidence for this!
+      (λ (x xs rest)
+        (Either (= E e x) rest)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Problem 5: Translate this statement to a type and prove it:
 ;; "'fig is an entry somewhere in the list:
 ;;    'avocado, 'apple, 'plum, 'fig, 'peach, 'orange"
-
+(claim fig-in-list (Member Atom 'fig (:: 'avocado (:: 'apple (:: 'plum (:: 'fig (:: 'peach (:: 'orange nil))))))))
+(define fig-in-list (right (right (right (left (same 'fig))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Problem 6: Prove that attaching a new entry to a list with ::
 ;; results in a list containing the new entry
-#;
 (claim ::-member-first
   (Π ((E U)
       (e E)
       (es (List E)))
     (Member E e (:: e es))))
+(define ::-member-first (λ (E e es) (left (same e))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -194,9 +203,13 @@
       (f (→ X
            Y))
       (xs (List X)))
-    (= Nat 
+    (= Nat
        (length X xs)
        (length Y (map X Y f xs)))))
+(define map-preserves-length (λ (X Y f xs)
+  (ind-List xs (λ (xs) (= Nat (length X xs) (length Y (map X Y f xs))))
+    (same 0)
+    (λ (x xs p) (cong p step-+)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -209,9 +222,11 @@
            Y))
       (front (List X))
       (back (List X)))
-    (= (List Y)
-       (append Y (map X Y f front) (map X Y f back))
-       (map X Y f (append X front back)))))
+    (= (List Y) (append Y (map X Y f front) (map X Y f back)) (map X Y f (append X front back)))))
+(define append-map-append (λ (X Y f front back)
+  (ind-List front (λ (front) (= (List Y) (append Y (map X Y f front) (map X Y f back)) (map X Y f (append X front back))))
+      (same (map X Y f back))
+      (λ (x xs p) (cong p (the (-> (List Y) (List Y)) (λ (φ) (:: (f x) φ))))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -229,6 +244,10 @@
     (= (List Z)
        (map Y Z g (map X Y f xs))
        (map X Z (λ (x) (g (f x))) xs))))
+(define map-fusion (λ (X Y Z f g xs)
+  (ind-List xs (λ (xs) (= (List Z) (map Y Z g (map X Y f xs)) (map X Z (λ (x) (g (f x))) xs)))
+    (same nil)
+    (λ (e es p) (cong p (the (-> (List Z) (List Z)) (λ (φ) (:: (g (f e)) φ))))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -240,6 +259,11 @@
     (Σ ((neutral (List E)))
        (Pair (= (List E) es (append E neutral es))
              (= (List E) es (append E es neutral))))))
+(define exists-neutral-append (λ (E es)
+  (cons nil (cons (same es)
+    (ind-List es (λ (es) (= (List E) es (append E es nil)))
+      (same nil)
+      (λ (e es p) (cong p (the (-> (List E) (List E)) (λ (φ) (:: e φ))))))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -252,6 +276,11 @@
          Y)
        (Vec X len)
       (Vec Y len))))
+(define map-Vec (λ (X Y len f v)
+  (ind-Vec len v (λ (len xs) (Vec Y len))
+    vecnil
+    (λ (k x _ v) (vec:: (f x) v)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Problem 12: Prove that the recursive version of length for Vec finds the
@@ -274,30 +303,8 @@
       (len Nat)
       (xs (Vec E len)))
     (= Nat (length-Vec E len xs) len)))
+(define length-correct (λ (E len xs)
+  (ind-Vec len xs (λ (len xs) (= Nat (length-Vec E len xs) len))
+    (same 0)
+    (λ (k e es p) (cong p step-+)))))
 
-
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Optional challenge problem:
-;;
-;; This type is a version of the Axiom of Choice. Prove that it is
-;; true in type theory.
-;;
-;; Further reading, if you're interested:
-;;  https://plato.stanford.edu/entries/axiom-choice/index.html
-;;
-;; This is the version called AC3 in that article.
-(claim choice
-  (Π ((X U)
-      (Y U)
-      ;; R is a relation over X and Y
-      (R (→ X Y
-           U)))
-    (→ (Π ((x X))
-         (Σ ((y Y))
-            (R x y)))
-      (Σ ((f (→ X
-               Y)))
-        (Π ((x X))
-           (R x (f x)))))))
