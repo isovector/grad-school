@@ -1,0 +1,133 @@
+#lang pie
+
+;; Because this is the last assignment of the semester, it is given in
+;; two parts. One part can be completed using only information from
+;; Chapter 15, while one part requires some information from Chapter
+;; 16.
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Part I
+
+;; 1. Written question.
+;;
+;; What are the consequences of lists being equal? Please fill out the
+;; following table such that your answers are written as types.
+;;
+;; Assume that x and y have type E.
+;;
+;;  If these are equal
+;;             |           | then this is true
+;;  -----------------------+-------------------
+;;    nil      | nil       | Trivial
+;;   (:: x xs) | nil       | Absurd
+;;   nil       | (:: y ys) | Absurd
+;;   (:: x xs) | (:: y ys) | Pair (= E x y) (= (List E) xs ys)
+
+;; 2. Translate your answer to question 1 into a function that
+;; computes a type when given two lists.
+(claim list=consequences
+       (Pi ((E U))
+           (-> (List E) (List E) U)))
+(define list=consequences (λ (E xs ys)
+  (rec-List xs
+    (rec-List ys
+      Trivial
+      (λ (_ _ _) Absurd))
+    (λ (x xs _)
+      (rec-List ys
+         Absurd
+         (λ (y ys _) (Pair (= E x y) (= (List E) xs ys)))
+       )))))
+
+;; 3. Prove that the consequences of equality hold for every list.
+;; Uncomment this claim after defining list=consequences.
+(claim list=consequences-same
+       (Pi ((E U))
+           (Pi ((es (List E)))
+               (list=consequences E es es))))
+(define list=consequences-same (λ (E es)
+  (ind-List es (λ (es) (list=consequences E es es))
+    sole
+    (λ (e es z) (cons (same e) (same es))))))
+
+;; 4. Prove the "No confusion" property for lists. In other words,
+;; show that if two lists are equal, then the described consequences
+;; are true.
+(claim use-list=
+       (Pi ((E U)
+            (xs (List E))
+            (ys (List E)))
+           (-> (= (List E) xs ys) (list=consequences E xs ys))))
+(define use-list= (λ (E xs ys eq)
+  (replace eq (λ (ys) (list=consequences E xs ys)) (list=consequences-same E xs))))
+
+;; 5. Translate the following statement to a type, write it as a
+;; claim, and prove it: "No list with :: at the top is ever equal to
+;; nil".
+
+;; 6. Translate the following statement to a type, write it as a
+;; claim, and prove it.  "Any two equal lists with :: at the top have
+;; an equal head and an equal tail."
+
+;; 7. Demonstrate that ind-Vec can do anything that tail can do by
+;; defining the function "back" using ind-Vec. You'll need the
+;; technique from chapter 15. Uncomment the test before handing in the
+;; assignment.
+;;
+;; It is not allowed to use head or tail in this solution!
+
+
+(claim back
+  (Pi ((E U)
+       (n Nat))
+    (-> (Vec E (add1 n))
+      (Vec E n))))
+
+#;
+(check-same (Vec Atom 2)
+  (back Atom 2 (vec:: 'cantaloupe (vec:: 'strawberries (vec:: 'huckleberries vecnil))))
+  (vec:: 'strawberries (vec:: 'huckleberries vecnil)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Part II
+
+;; Here are some useful helpers.
+(claim Not (-> U U))
+(define Not (lambda (X) (-> X Absurd)))
+
+(claim Dec (-> U U))
+(define Dec (lambda (X) (Either X (Not X))))
+
+;; 7. Prove that it is decidable whether a list is equal to nil.
+(claim nil?
+       (Pi ((E U)
+            (es (List E)))
+           (Dec (= (List E) nil es))))
+
+;; 8. Prove that the equality of lists is decidable if the equality of
+;; their members is decidable.
+;;
+;; This question is worth 4 points, to be determined depending on your
+;; progress:
+;;
+;; 1 point for systematically describing in English how the solution
+;; could be written, with reference to the corresponding proof that
+;; equality on Nat is decidable.
+;;
+;; 2 points for a Pie solution that has both base cases working, and a
+;; systematic English description of how to write the step, based on
+;; the Nat equivalent.
+;;
+;; 4 points for a fully-working solution in Pie.
+;;
+;; It is worth your while to define helper functions for the various
+;; bases and steps. Giving them memorable names also helps.
+(claim list=?
+       (Pi ((E U)
+            (=? (Pi ((v E) (w E)) (Dec (= E v w))))
+            (xs (List E))
+            (ys (List E)))
+           (Dec (= (List E) xs ys))))
+
