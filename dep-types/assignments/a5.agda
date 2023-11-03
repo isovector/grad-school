@@ -121,3 +121,89 @@ replace-can-symm X from to x = replace x (λ v → v ≡ from) (same from)
 replace-can-trans : (X : Set) → (l m r : X) → l ≡ m → m ≡ r → l ≡ r
 replace-can-trans X l m r lm mr = replace mr (λ v → l ≡ v) (replace lm (λ v → l ≡ v) (same l))
 
+open import Data.Empty
+open import Data.Sum
+  renaming (inj₁ to left; inj₂ to right)
+
+Dec : Set → Set
+Dec A = A ⊎ (A → ⊥)
+
+open import Data.List
+  renaming ([] to nil; _∷_ to ::)
+
+ind-Either : {A B : Set}
+           → (target : A ⊎ B)
+           → (motive : A ⊎ B → Set)
+           → ((a : A) → motive (left a))
+           → ((b : B) → motive (right b))
+           → motive target
+ind-Either (left x₂) motive x x₁ = x x₂
+ind-Either (right y) motive x x₁ = x₁ y
+
+ind-List : {E : Set}
+         → (target : List E)
+         → (motive : List E → Set)
+         → (base : motive nil)
+         → (step : (e : E) → (es : List E) → motive es → motive (:: e es))
+         → motive target
+ind-List nil motive base step = base
+ind-List (:: x target) motive base step = step x target (ind-List target motive base step)
+
+list=? : {E : Set} → (=? : (v w : E) → Dec (v ≡ w)) → (xs ys : List E) → Dec (xs ≡ ys)
+list=? _=?_ xs ys =
+  ind-List xs (λ xs → Dec (xs ≡ ys))
+    ?
+    λ { x xs xxs=ys →
+      ind-List ys (λ ys → Dec ((:: x xs) ≡ ys)) ?
+        λ { y ys2 p → {! !} }
+    }
+          -- ind-List (:: x ys) (λ ys → Dec ((:: x xs) ≡ (:: x ys))) ? ?
+          -- )
+          -- }
+            -- ?
+            -- λ { y ys2 xxs=ys2 →
+            --   ind-Either xxs=ys2 (λ _ → Dec (:: x xs ≡ :: y ys2))
+            --     (λ { refl → right λ { () } })
+            --     λ { xxs≠ys2 →
+            --       ind-Either (x =? y) (λ _ → Dec (:: x xs ≡ :: y ys2))
+            --         (λ { refl → left {! !} })
+            --         λ { x≠y → right λ { refl → x≠y refl } }
+            --        } }
+           -- )
+           --
+
+      --
+      -- }
+
+-- list=? _=?_ [] [] = left refl
+-- list=? _=?_ [] (x ∷ ys) = right λ ()
+-- list=? _=?_ (x ∷ xs) [] = right λ ()
+-- list=? _=?_ (x ∷ xs) (y ∷ ys) =
+--   let x=y = x =? y
+--       xs=ys = list=? _=?_ xs ys
+--    in ?
+
+open import Data.Vec
+
+
+ind-Vec
+  : ∀ {ℓ} {E : Set ℓ} n (v : Vec E n)
+  → (motive : ∀ k → Vec E k → Set)
+  → motive zero []
+  → (∀ k e es → motive k es → motive (suc k) (e ∷ es))
+  → motive n v
+ind-Vec _ [] motive base step = base
+ind-Vec _ (x ∷ v) motive base step = step _ x v (ind-Vec _ v motive base step)
+
+suc-inj : ∀ x y → suc x ≡ suc y → x ≡ y
+suc-inj x .x refl = refl
+
+back : (E : Set) → (n : ℕ) → Vec E (add1 n) → Vec E n
+back E n v
+  = ind-Vec (add1 n) v
+            (λ n v → (j : ℕ) → n ≡ add1 j → Vec E j)
+            (λ { j () })
+            (λ { n _ v _ j n=j → replace (suc-inj n j n=j) (λ φ → Vec E φ) v })
+            n
+            refl
+

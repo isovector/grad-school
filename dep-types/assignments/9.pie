@@ -65,10 +65,23 @@
 ;; 5. Translate the following statement to a type, write it as a
 ;; claim, and prove it: "No list with :: at the top is ever equal to
 ;; nil".
+(claim ::-not-nil
+       (Π ((E U)(x E) (xs (List E)))
+          (-> (= (List E) (:: x xs) nil)
+              Absurd)))
+(define ::-not-nil (λ (E x xs eq) (use-list= E (:: x xs) nil eq)))
 
 ;; 6. Translate the following statement to a type, write it as a
 ;; claim, and prove it.  "Any two equal lists with :: at the top have
 ;; an equal head and an equal tail."
+
+(claim ::-=
+       (Π ((E U) (x E) (xs (List E)) (y E) (ys (List E)))
+          (-> (= (List E) (:: x xs) (:: y ys))
+              (Pair (= E x y) (= (List E) xs ys)))))
+(define ::-= (λ (E x xs y ys eq)
+  (replace eq (λ (ys) (list=consequences E (:: x xs) ys)) (list=consequences-same E (:: x xs)))))
+
 
 ;; 7. Demonstrate that ind-Vec can do anything that tail can do by
 ;; defining the function "back" using ind-Vec. You'll need the
@@ -76,15 +89,48 @@
 ;; assignment.
 ;;
 ;; It is not allowed to use head or tail in this solution!
+(claim nat=consequences
+       (-> Nat Nat U))
+(define nat=consequences (λ (xs ys)
+  (rec-Nat xs
+    (rec-Nat ys
+      Trivial
+      (λ (_ _) Absurd))
+    (λ (x _)
+      (rec-Nat ys
+         Absurd
+         (λ (y _) (= Nat x y))
+       )))))
 
+(claim nat=consequences-same
+       (Pi ((es Nat))
+           (nat=consequences es es)))
+(define nat=consequences-same (λ (es)
+  (ind-Nat es (λ (es) (nat=consequences es es))
+    sole
+    (λ (e z) (same e)))))
+
+(claim use-nat=
+       (Pi ((xs Nat)
+            (ys Nat))
+           (-> (= Nat xs ys) (nat=consequences xs ys))))
+(define use-nat= (λ (xs ys eq)
+  (replace eq (λ (ys) (nat=consequences xs ys)) (nat=consequences-same xs))))
 
 (claim back
   (Pi ((E U)
        (n Nat))
-    (-> (Vec E (add1 n))
-      (Vec E n))))
+    (-> (Vec E (add1 n)) (Vec E n))))
 
-#;
+(define back (λ (E n v)
+  ((ind-Vec (add1 n) v
+            (λ (n v) (Π ((j Nat)) (-> (= Nat n (add1 j)) (Vec E j))))
+            (λ (j 0=1) (ind-Absurd (use-nat= 0 (add1 j) 0=1) (Vec E j)))
+            (λ (n _ v _ j n=j)
+              (replace (use-nat= (add1 n) (add1 j) n=j) (the (-> Nat U) (λ (φ) (Vec E φ))) v) ))
+            n
+            (same (add1 n)))))
+
 (check-same (Vec Atom 2)
   (back Atom 2 (vec:: 'cantaloupe (vec:: 'strawberries (vec:: 'huckleberries vecnil))))
   (vec:: 'strawberries (vec:: 'huckleberries vecnil)))
@@ -104,7 +150,11 @@
 (claim nil?
        (Pi ((E U)
             (es (List E)))
-           (Dec (= (List E) nil es))))
+           (Dec (= (List E) es nil))))
+(define nil? (λ (E es)
+  (ind-List es (λ (es) (Dec (= (List E) es nil)))
+    (left (same nil))
+    (λ (x xs z) (right (::-not-nil E x xs))))))
 
 ;; 8. Prove that the equality of lists is decidable if the equality of
 ;; their members is decidable.
@@ -124,10 +174,44 @@
 ;;
 ;; It is worth your while to define helper functions for the various
 ;; bases and steps. Giving them memorable names also helps.
+
+(claim ap-dec-::
+       (Pi ((E U)
+            (x E)
+            (xs (List E))
+            (y E)
+            (ys (List E)))
+           (->
+             (Dec (= E x y))
+             (Dec (= (List E) xs ys))
+             (Dec (= (List E) (:: x xs) (:: y ys))))))
+(define ap-dec-:: (λ (E x xs y ys x=y? xs=ys?)
+  (ind-Either x=y? (λ (_) (Dec (= (List E) (:: x xs) (:: y ys))))
+    (λ (x=y)
+      (ind-Either xs=ys? (λ (_) (Dec (= (List E) (:: x xs) (:: y ys))))
+        (λ (xs=ys) (left
+          (replace x=y (λ (φ) (= (List E) (:: x xs) (:: φ ys)))
+            (cong xs=ys (the (-> (List E) (List E)) (λ (φ) (:: x φ)))))))
+        (λ (xs/=ys) (right (λ (l=r) (xs/=ys (cdr (::-= E x xs y ys l=r))))))))
+    (λ (x/=y) (right (λ (l=r) (x/=y (car (::-= E x xs y ys l=r)))))))))
+
 (claim list=?
        (Pi ((E U)
             (=? (Pi ((v E) (w E)) (Dec (= E v w))))
             (xs (List E))
             (ys (List E)))
            (Dec (= (List E) xs ys))))
+(define list=? (λ (E dec-E xs)
+  (ind-List xs (λ (xs) (Π ((ys (List E))) (Dec (= (List E) xs ys))))
+    (λ (ys) (ind-List ys (λ (ys) (Dec (= (List E) nil ys)))
+      (left (same nil))
+      (λ (y ys2 py)
+        (right (λ (s) (::-not-nil E y ys2 (symm s))))
+      )))
+    (λ (x xs2 dec-xs2 ys)
+      (ind-List ys (λ (ys) (Dec (= (List E) (:: x xs2) ys)))
+        (right (::-not-nil E x xs2)) ; absurd
+        (λ (y ys2 xxs=ys2)
+          (ap-dec-:: E x xs2 y ys2 (dec-E x y) (dec-xs2 ys2))
+        ))))))
 
