@@ -1,7 +1,3 @@
-{-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall          #-}
-
 module Main where
 
 -- This file is a type checker for a smaller relative of Pie, called Tartlet.
@@ -89,11 +85,8 @@ module Main where
 -- need to be expressions for which a type can be synthesized. Use The
 -- to make a checkable expression synthesizable.
 
-import Data.Foldable
-import Data.String
-
 newtype Name = Name String
-  deriving (Show, Eq, IsString)
+  deriving (Show, Eq)
 
 newtype Message = Message String
   deriving Show
@@ -118,13 +111,9 @@ data Expr
   | Lambda Name Expr
   | App Expr Expr
   | Sigma Name Expr Expr
-  | Either Expr Expr
   | Cons Expr Expr
   | Car Expr
   | Cdr Expr
-  | Inj1 Expr
-  | Inj2 Expr
-  | IndEither Expr Expr Expr Expr
   | Nat
   | Zero
   | Add1 Expr
@@ -142,10 +131,6 @@ data Expr
   | The Expr Expr
   deriving (Eq, Show)
 
-instance IsString Expr where
-  fromString = Var . fromString
-
-
 alphaEquiv :: Expr -> Expr -> Bool
 alphaEquiv e1 e2 = alphaEquivHelper 0 [] e1 [] e2
 
@@ -154,10 +139,10 @@ alphaEquivHelper :: Integer ->
                     [(Name, Integer)] -> Expr ->
                     [(Name, Integer)] -> Expr ->
                     Bool
-alphaEquivHelper _ ns1 (Var x) ns2 (Var y) =
+alphaEquivHelper i ns1 (Var x) ns2 (Var y) =
   case (lookup x ns1, lookup y ns2) of
     (Nothing,  Nothing)  -> x == y
-    (Just i',   Just j)   -> i' == j
+    (Just i,   Just j)   -> i == j
     _                    -> False
 alphaEquivHelper i ns1 (Pi x a1 r1) ns2 (Pi y a2 r2) =
   alphaEquivHelper  i        ns1             a1  ns2             a2 &&
@@ -165,9 +150,6 @@ alphaEquivHelper i ns1 (Pi x a1 r1) ns2 (Pi y a2 r2) =
 alphaEquivHelper i ns1 (Lambda x body1) ns2 (Lambda y body2) =
   alphaEquivHelper (i + 1) ((x, i) : ns1) body1 ((y, i) : ns2) body2
 alphaEquivHelper i ns1 (App rator1 rand1) ns2 (App rator2 rand2) =
-  alphaEquivHelper  i  ns1  rator1  ns2  rator2 &&
-  alphaEquivHelper  i  ns1  rand1   ns2  rand2
-alphaEquivHelper i ns1 (Either rator1 rand1) ns2 (Either rator2 rand2) =
   alphaEquivHelper  i  ns1  rator1  ns2  rator2 &&
   alphaEquivHelper  i  ns1  rand1   ns2  rand2
 alphaEquivHelper i ns1 (Sigma x a1 d1) ns2 (Sigma y a2 d2) =
@@ -178,11 +160,7 @@ alphaEquivHelper i ns1 (Cons car1 cdr1) ns2 (Cons car2 cdr2) =
   alphaEquivHelper  i  ns1  cdr1  ns2  cdr2
 alphaEquivHelper i ns1 (Car pair1) ns2 (Car pair2) =
   alphaEquivHelper  i  ns1  pair1  ns2  pair2
-alphaEquivHelper i ns1 (Inj1 pair1) ns2 (Inj1 pair2) =
-  alphaEquivHelper  i  ns1  pair1  ns2  pair2
 alphaEquivHelper i ns1 (Cdr pair1) ns2 (Cdr pair2) =
-  alphaEquivHelper  i  ns1  pair1  ns2  pair2
-alphaEquivHelper i ns1 (Inj2 pair1) ns2 (Inj2 pair2) =
   alphaEquivHelper  i  ns1  pair1  ns2  pair2
 alphaEquivHelper  _  _    Nat        _    Nat              = True
 alphaEquivHelper  _  _    Zero       _    Zero             = True
@@ -190,12 +168,6 @@ alphaEquivHelper  i  ns1  (Add1 e1)  ns2  (Add1 e2)        =
   alphaEquivHelper  i  ns1  e1     ns2  e2
 alphaEquivHelper  i  ns1  (IndNat tgt1 mot1 base1 step1)
                      ns2  (IndNat tgt2 mot2 base2 step2)   =
-  alphaEquivHelper  i  ns1  tgt1   ns2  tgt2   &&
-  alphaEquivHelper  i  ns1  mot1   ns2  mot2   &&
-  alphaEquivHelper  i  ns1  base1  ns2  base2  &&
-  alphaEquivHelper  i  ns1  step1  ns2  step2
-alphaEquivHelper  i  ns1  (IndEither tgt1 mot1 base1 step1)
-                     ns2  (IndEither tgt2 mot2 base2 step2)   =
   alphaEquivHelper  i  ns1  tgt1   ns2  tgt2   &&
   alphaEquivHelper  i  ns1  mot1   ns2  mot2   &&
   alphaEquivHelper  i  ns1  base1  ns2  base2  &&
@@ -232,9 +204,6 @@ data Value
   | VLambda Closure
   | VSigma Ty Closure
   | VPair Value Value
-  | VEither Value Value
-  | VInj1 Value
-  | VInj2 Value
   | VNat
   | VZero
   | VAdd1 Value
@@ -278,7 +247,6 @@ data Neutral
   | NCar Neutral
   | NCdr Neutral
   | NIndNat Neutral Normal Normal Normal
-  | NIndEither Neutral Normal Normal Normal
   | NReplace Neutral Normal Normal
   | NIndAbsurd Neutral Normal
   deriving Show
@@ -311,8 +279,8 @@ lookupType (Ctx [])             x =
 lookupType (Ctx ((y, e) : ctx)) x
   | x == y =
     case e of
-      Def t _ -> pure t
-      IsA t   -> pure t
+      Def t _ -> return t
+      IsA t   -> return t
   | otherwise =
     lookupType (Ctx ctx) x
 
@@ -323,14 +291,13 @@ mkEnv (Ctx ((x, e) : ctx)) = Env ((x, v) : env)
   where
     Env env = mkEnv (Ctx ctx)
     v = case e of
-          Def _ v' -> v'
+          Def _ v -> v
           IsA t   -> VNeutral t (NVar x)
 
 
 eval :: Env -> Expr -> Value
 eval env (Var x)             = evalVar env x
 eval env (Pi x dom ran)      = VPi (eval env dom) (Closure env x ran)
-eval env (Either l r)        = VEither (eval env l) (eval env r)
 eval env (Lambda x body)     = VLambda (Closure env x body)
 eval env (App rator rand)    = doApply (eval env rator) (eval env rand)
 eval env (Sigma x carType cdrType) =
@@ -338,27 +305,23 @@ eval env (Sigma x carType cdrType) =
 eval env (Cons a d)          = VPair (eval env a) (eval env d)
 eval env (Car e)             = doCar (eval env e)
 eval env (Cdr e)             = doCdr (eval env e)
-eval env (Inj1 e)            = VInj1 (eval env e)
-eval env (Inj2 e)            = VInj2 (eval env e)
-eval env (IndEither e mot l r) =
-  doIndEither (eval env e) (eval env mot) (eval env l) (eval env r)
-eval _env Nat                 = VNat
-eval _env Zero                = VZero
+eval env Nat                 = VNat
+eval env Zero                = VZero
 eval env (Add1 e)            = VAdd1 (eval env e)
 eval env (IndNat tgt mot base step) =
   doIndNat (eval env tgt) (eval env mot) (eval env base) (eval env step)
 eval env (Equal ty from to)  = VEq (eval env ty) (eval env from) (eval env to)
-eval _env Same                = VSame
+eval env Same                = VSame
 eval env (Replace tgt mot base) =
   doReplace (eval env tgt) (eval env mot) (eval env base)
-eval _env Trivial             = VTrivial
-eval _env Sole                = VSole
-eval _env Absurd              = VAbsurd
+eval env Trivial             = VTrivial
+eval env Sole                = VSole
+eval env Absurd              = VAbsurd
 eval env (IndAbsurd tgt mot) = doIndAbsurd (eval env tgt) (eval env mot)
-eval _env Atom                = VAtom
-eval _env (Tick x)            = VTick x
-eval _env U                   = VU
-eval env (The _ty e)          = eval env e
+eval env Atom                = VAtom
+eval env (Tick x)            = VTick x
+eval env U                   = VU
+eval env (The ty e)          = eval env e
 
 
 evalClosure :: Closure -> Value -> Value
@@ -366,21 +329,39 @@ evalClosure (Closure env x e) v = eval (extendEnv env x v) e
 
 
 doCar :: Value -> Value
-doCar (VPair v1 _v2) = v1
-doCar (VNeutral (VSigma aT _dT) neu) =
+doCar (VPair v1 v2) = v1
+doCar (VNeutral (VSigma aT dT) neu) =
   VNeutral aT (NCar neu)
-doCar _ = error "not a pair"
 
 doCdr :: Value -> Value
-doCdr (VPair _v1 v2) = v2
-doCdr v@(VNeutral (VSigma _aT dT) neu) =
+doCdr (VPair v1 v2) = v2
+doCdr v@(VNeutral (VSigma aT dT) neu) =
   VNeutral (evalClosure dT (doCar v)) (NCdr neu)
-doCdr _ = error "not a pair"
 
-indEitherType :: (Expr -> Expr) -> Value -> Value -> Value
-indEitherType f mot t =
-  eval (Env [("mot", mot), ("t", t)])
-    $ Pi "l" "t" $ "mot" @@ f "l"
+
+
+doApply :: Value -> Value -> Value
+doApply (VLambda closure)                arg =
+  evalClosure closure arg
+doApply (VNeutral (VPi dom ran) neu)   arg =
+  VNeutral (evalClosure ran arg) (NApp neu (Normal dom arg))
+
+
+doIndAbsurd :: Value -> Value -> Value
+doIndAbsurd (VNeutral VAbsurd neu) mot =
+  VNeutral mot (NIndAbsurd neu (Normal VU mot))
+
+
+doReplace :: Value -> Value -> Value -> Value
+doReplace VSame                           mot base =
+  base
+doReplace (VNeutral (VEq ty from to) neu) mot base =
+  VNeutral (doApply mot to)
+           (NReplace neu (Normal motT mot) (Normal baseT base))
+  where
+    motT  = VPi ty (Closure (Env []) (Name "x") U)
+    baseT = doApply mot from
+
 
 indNatStepType :: Value -> Value
 indNatStepType mot =
@@ -393,7 +374,7 @@ indNatStepType mot =
 
 
 doIndNat :: Value -> Value -> Value -> Value -> Value
-doIndNat VZero                   _mot base _step =
+doIndNat VZero                   mot base step =
   base
 doIndNat (VAdd1 v)               mot base step =
   doApply (doApply step v) (doIndNat v mot base step)
@@ -403,50 +384,13 @@ doIndNat tgt@(VNeutral VNat neu) mot base step =
       (Normal (VPi VNat (Closure (Env []) (Name "k") U)) mot)
       (Normal (doApply mot VZero) base)
       (Normal (indNatStepType mot) step))
-doIndNat _ _ _ _ = error "not a nat!"
-
-
-doIndEither :: Value -> Value -> Value -> Value -> Value
-doIndEither (VInj1 e) _ l _ = doApply l e
-doIndEither (VInj2 e) _ _ r = doApply r e
-doIndEither v@(VNeutral t@(VEither tl tr) neu) mot l r
-  = VNeutral (doApply mot v)
-  $ NIndEither neu (Normal (VPi t $ Closure (Env []) (Name "k") U) mot) (Normal tl l)
-  $ Normal tr r
-doIndEither _ _ _ _ = error "not an either"
-
-
-doApply :: Value -> Value -> Value
-doApply (VLambda closure)                arg =
-  evalClosure closure arg
-doApply (VNeutral (VPi dom ran) neu)   arg =
-  VNeutral (evalClosure ran arg) (NApp neu (Normal dom arg))
-doApply z _ = error $ "not a lambda: " <> show z
-
-
-doIndAbsurd :: Value -> Value -> Value
-doIndAbsurd (VNeutral VAbsurd neu) mot =
-  VNeutral mot (NIndAbsurd neu (Normal VU mot))
-doIndAbsurd _ _ = error "not a void"
-
-
-doReplace :: Value -> Value -> Value -> Value
-doReplace VSame                           _mot base =
-  base
-doReplace (VNeutral (VEq ty from to) neu) mot base =
-  VNeutral (doApply mot to)
-           (NReplace neu (Normal motT mot) (Normal baseT base))
-  where
-    motT  = VPi ty (Closure (Env []) (Name "x") U)
-    baseT = doApply mot from
-doReplace _                           _ _ = error "can't replace"
 
 
 readBackNormal :: Ctx -> Normal -> Expr
 readBackNormal ctx (Normal t v) = readBackTyped ctx t v
 
 readBackTyped :: Ctx -> Ty -> Value -> Expr
-readBackTyped _ctx VNat VZero = Zero
+readBackTyped ctx VNat VZero = Zero
 readBackTyped ctx VNat (VAdd1 v) = Add1 (readBackTyped ctx VNat v)
 readBackTyped ctx (VPi dom ran) fun =
   Lambda x
@@ -463,16 +407,15 @@ readBackTyped ctx (VSigma aT dT) pair =
   where
     carVal = doCar pair
     cdrVal = doCdr pair
-readBackTyped _ctx VTrivial _val = Sole
+readBackTyped ctx VTrivial val = Sole
 readBackTyped ctx VAbsurd (VNeutral VAbsurd neu) =
   The Absurd (readBackNeutral ctx neu)
-readBackTyped _ctx (VEq _ _ _) VSame = Same
-readBackTyped _ctx VAtom (VTick x) = Tick x
-readBackTyped _ctx VU VNat = Nat
-readBackTyped _ctx VU VAtom = Atom
-readBackTyped _ctx VU VTrivial = Trivial
-readBackTyped _ctx VU VAbsurd = Absurd
-readBackTyped ctx VU (VEither l r) = Either (readBackTyped ctx VU l) (readBackTyped ctx VU r)
+readBackTyped ctx (VEq _ _ _) VSame = Same
+readBackTyped ctx VAtom (VTick x) = Tick x
+readBackTyped ctx VU VNat = Nat
+readBackTyped ctx VU VAtom = Atom
+readBackTyped ctx VU VTrivial = Trivial
+readBackTyped ctx VU VAbsurd = Absurd
 readBackTyped ctx VU (VEq t from to) =
   Equal (readBackTyped ctx VU t)
         (readBackTyped ctx t from)
@@ -491,34 +434,19 @@ readBackTyped ctx VU (VPi aT bT) = Pi x a b
     b = readBackTyped (extendCtx ctx x aT)
           VU
           (evalClosure bT (VNeutral aT (NVar x)))
-readBackTyped _ctx VU VU = U
-readBackTyped ctx _t (VNeutral _t' neu) =
+readBackTyped ctx VU VU = U
+readBackTyped ctx t (VNeutral t' neu) =
   readBackNeutral ctx neu
-readBackTyped ctx (VEither l _) (VInj1 e) =
-  Inj1 $ readBackTyped ctx l e
-readBackTyped ctx (VEither _ r) (VInj2 e) =
-  Inj2 $ readBackTyped ctx r e
-readBackTyped _ otherT otherE = error $ unlines
-  [ "Trying to read back as: "
-  , show otherT
-  , ""
-  , "but the expr I have is:"
-  , show otherE
-  ]
+readBackTyped _ otherT otherE = error $ (show otherT) ++ show otherE
 
 readBackNeutral :: Ctx -> Neutral -> Expr
-readBackNeutral _ctx (NVar x) = Var x
+readBackNeutral ctx (NVar x) = Var x
 readBackNeutral ctx (NApp neu arg) =
   App (readBackNeutral ctx neu) (readBackNormal ctx arg)
 readBackNeutral ctx (NCar neu) = Car (readBackNeutral ctx neu)
 readBackNeutral ctx (NCdr neu) = Cdr (readBackNeutral ctx neu)
 readBackNeutral ctx (NIndNat neu mot base step) =
   IndNat (readBackNeutral ctx neu)
-         (readBackNormal ctx mot)
-         (readBackNormal ctx base)
-         (readBackNormal ctx step)
-readBackNeutral ctx (NIndEither neu mot base step) =
-  IndEither (readBackNeutral ctx neu)
          (readBackNormal ctx mot)
          (readBackNormal ctx base)
          (readBackNormal ctx step)
@@ -535,33 +463,29 @@ readBackNeutral ctx (NIndAbsurd neu mot) =
 synth :: Ctx -> Expr -> Either Message Ty
 synth ctx (Var x) =
   do t <- lookupType ctx x
-     pure t
+     return t
 synth ctx (Pi x a b) =
   do check ctx a VU
      check (extendCtx ctx x (eval (mkEnv ctx) a)) b VU
-     pure VU
+     return VU
 synth ctx (App rator rand) =
   do funTy <- synth ctx rator
      (a, b) <- isPi ctx funTy
      check ctx rand a
-     pure (evalClosure b (eval (mkEnv ctx) rand))
+     return (evalClosure b (eval (mkEnv ctx) rand))
 synth ctx (Sigma x a b) =
   do check ctx a VU
      check (extendCtx ctx x (eval (mkEnv ctx) a)) b VU
-     pure VU
+     return VU
 synth ctx (Car e) =
   do t <- synth ctx e
-     (aT, _dT) <- isSigma ctx t
-     pure aT
+     (aT, dT) <- isSigma ctx t
+     return aT
 synth ctx (Cdr e) =
   do t <- synth ctx e
-     (_aT, dT) <- isSigma ctx t
-     pure (evalClosure dT (doCar (eval (mkEnv ctx) e)))
-synth _ctx Nat = pure VU
-synth ctx (Either l r) = do
-  check ctx l VU
-  check ctx r VU
-  pure VU
+     (aT, dT) <- isSigma ctx t
+     return (evalClosure dT (doCar (eval (mkEnv ctx) e)))
+synth ctx Nat = return VU
 synth ctx (IndNat tgt mot base step) =
   do t <- synth ctx tgt
      isNat ctx t
@@ -571,23 +495,13 @@ synth ctx (IndNat tgt mot base step) =
      let motV = eval (mkEnv ctx) mot
      check ctx base (doApply motV VZero)
      check ctx step (indNatStepType motV)
-     pure (doApply motV tgtV)
-synth ctx (IndEither tgt mot l r) = do
-  t <- synth ctx tgt
-  (lt, rt) <- isEither ctx t
-  let tgtV  = eval (mkEnv ctx) tgt
-      motTy = eval (Env [(Name "ty", VEither lt rt)]) (Pi (Name "x") (Var $ Name "ty") U)
-  check ctx mot motTy
-  let motV = eval (mkEnv ctx) mot
-  check ctx l $ indEitherType Inj1 motV lt
-  check ctx r $ indEitherType Inj2 motV rt
-  pure (doApply motV tgtV)
+     return (doApply motV tgtV)
 synth ctx (Equal ty from to) =
   do check ctx ty VU
      let tyV = eval (mkEnv ctx) ty
      check ctx from tyV
      check ctx to tyV
-     pure VU
+     return VU
 synth ctx (Replace tgt mot base) =
   do t <- synth ctx tgt
      (ty, from, to) <- isEqual ctx t
@@ -595,22 +509,22 @@ synth ctx (Replace tgt mot base) =
      check ctx mot motTy
      let motV = eval (mkEnv ctx) mot
      check ctx base (doApply motV from)
-     pure (doApply motV to)
-synth _ctx Trivial = pure VU
-synth _ctx Absurd = pure VU
+     return (doApply motV to)
+synth ctx Trivial = return VU
+synth ctx Absurd = return VU
 synth ctx (IndAbsurd tgt mot) =
   do t <- synth ctx tgt
      isAbsurd ctx t
      check ctx mot VU
-     pure (eval (mkEnv ctx) mot)
-synth _ctx Atom = pure VU
-synth _ctx U = pure VU
+     return (eval (mkEnv ctx) mot)
+synth ctx Atom = return VU
+synth ctx U = return VU
 synth ctx (The ty expr) =
   do check ctx ty VU
      let tyV = eval (mkEnv ctx) ty
      check ctx expr tyV
-     pure tyV
-synth _ctx other =
+     return tyV
+synth ctx other =
   failure ("Unable to synthesize a type for " ++ show other)
 
 
@@ -626,19 +540,15 @@ check ctx (Cons a d) t =
      check ctx d (evalClosure dT aV)
 check ctx Zero t =
   isNat ctx t
-check ctx (Inj1 e) (VEither l _) =
-  check ctx e l
-check ctx (Inj2 e) (VEither _ r) =
-  check ctx e r
 check ctx (Add1 n) t =
   do isNat ctx t
      check ctx n VNat
 check ctx Same t =
-  do (t', from, to) <- isEqual ctx t
-     convert ctx t' from to
+  do (t, from, to) <- isEqual ctx t
+     convert ctx t from to
 check ctx Sole t =
   isTrivial ctx t
-check ctx (Tick _a) t=
+check ctx (Tick a) t=
   isAtom ctx t
 check ctx other t =
   do t' <- synth ctx other
@@ -648,8 +558,8 @@ check ctx other t =
 convert :: Ctx -> Ty -> Value -> Value -> Either Message ()
 convert ctx t v1 v2 =
   if alphaEquiv e1 e2
-    then pure ()
-    else failure (show e1 ++ "\n\nis not the same as\n\n" ++ show e2)
+    then return ()
+    else failure (show e1 ++ " is not the same as " ++ show e2)
   where
      e1 = readBackTyped ctx t v1
      e2 = readBackTyped ctx t v2
@@ -662,40 +572,36 @@ unexpected ctx msg t = failure (msg ++ ": " ++ show e)
 
 
 isPi :: Ctx -> Value -> Either Message (Ty, Closure)
-isPi _   (VPi a b) = pure (a, b)
+isPi _   (VPi a b) = return (a, b)
 isPi ctx other     = unexpected ctx "Not a Pi type" other
 
 
 isSigma :: Ctx -> Value -> Either Message (Ty, Closure)
-isSigma _   (VSigma a b) = pure (a, b)
+isSigma _   (VSigma a b) = return (a, b)
 isSigma ctx other        = unexpected ctx "Not a Sigma type" other
-
-isEither :: Ctx -> Value -> Either Message (Ty, Ty)
-isEither _   (VEither a b) = pure (a, b)
-isEither ctx other        = unexpected ctx "Not an Either type" other
 
 
 isNat :: Ctx -> Value -> Either Message ()
-isNat _   VNat  = pure ()
+isNat _   VNat  = return ()
 isNat ctx other = unexpected ctx "Not Nat" other
 
 
 isEqual :: Ctx -> Value -> Either Message (Ty, Value, Value)
-isEqual _   (VEq ty from to) = pure (ty, from, to)
+isEqual _   (VEq ty from to) = return (ty, from, to)
 isEqual ctx other            = unexpected ctx "Not an equality type" other
 
 
 isAbsurd :: Ctx -> Value -> Either Message ()
-isAbsurd _   VAbsurd = pure ()
+isAbsurd _   VAbsurd = return ()
 isAbsurd ctx other   = unexpected ctx "Not Absurd: " other
 
 isTrivial :: Ctx -> Value -> Either Message ()
-isTrivial _   VTrivial = pure ()
+isTrivial _   VTrivial = return ()
 isTrivial ctx other    = unexpected ctx "Not Trivial" other
 
 
 isAtom :: Ctx -> Value -> Either Message ()
-isAtom _   VAtom = pure ()
+isAtom _   VAtom = return ()
 isAtom ctx other = unexpected ctx "Not Atom" other
 
 
@@ -712,13 +618,13 @@ toplevel ctx (Define x e) =
     Left   _  ->
       do  t <- synth ctx e
           let v = eval (mkEnv ctx) e
-          pure ([], define ctx x t v)
+          return ([], define ctx x t v)
 toplevel ctx (Example e) =
   do  t <- synth ctx e
       let  v   =  eval (mkEnv ctx) e
            e'  =  readBackTyped ctx t v
            t'  =  readBackTyped ctx VU t
-      pure ([ExampleOutput (The t' e')], ctx)
+      return ([ExampleOutput (The t' e')], ctx)
 
 processFile :: [Toplevel] -> Either Message ([Output], Ctx)
 processFile decls = process' initCtx decls
@@ -727,16 +633,12 @@ processFile decls = process' initCtx decls
     process' ctx (t:ts) =
       do (out, ctx') <- toplevel ctx t
          (moreOut, ctx'') <- process' ctx' ts
-         pure (out ++ moreOut, ctx'')
+         return (out ++ moreOut, ctx'')
 
 testfile :: [Toplevel] -> Either Message [Output]
 testfile decls =
   do (out, _) <- processFile decls
-     pure out
-
-(@@) :: Expr -> Expr -> Expr
-(@@) = App
-infixl 5 @@
+     return out
 
 evenOddProgram :: [Toplevel]
 evenOddProgram =
@@ -747,15 +649,6 @@ evenOddProgram =
            Zero
            (Lambda (Name "_") (Lambda (Name "dbl") (Add1 (Add1 (Var (Name "dbl")))))))))
   , Example (App (Var (Name "double")) (Add1 (Add1 (Add1 Zero))))
-
-
-  , Define "Even" $ The (Pi "n" Nat U)
-      $ Lambda "n" $ Sigma "half" Nat $ Equal Nat "n" $ App "double" "half"
-
-  , Define "Odd" $ The (Pi "n" Nat U)
-      $ Lambda "n" $ Sigma "half" Nat $ Equal Nat "n" $ Add1 $ App "double" "half"
-
-
   , Define (Name "cong")
       (The
         (Pi (Name "A") U
@@ -780,58 +673,12 @@ evenOddProgram =
                                (App (Var (Name "f")) (Var (Name "where")))))
                        Same))))))))
 
-  , Define "zero-is-even" $ The ("Even" @@ Zero) $ Cons Zero Same
-  , Example "zero-is-even"
-
-  , Define "add1-even->odd" $ The ( Pi "n" Nat
-                                  $ Pi "_" ("Even" @@ "n")
-                                  $ "Odd" @@ Add1 "n"
-                                  )
-      $ Lambda "n" $ Lambda "e"
-      $ Cons (Car "e")
-      $ "cong" @@ Nat
-               @@ Nat
-               @@ "n"
-               @@ ("double" @@ Car "e")
-               @@ (Cdr "e")
-               @@ Lambda "n" (Add1 "n")
-
-  , Define "add1-odd->even" $ The ( Pi "n" Nat
-                                  $ Pi "_" ("Odd" @@ "n")
-                                  $ "Even" @@ Add1 "n"
-                                  )
-      $ Lambda "n" $ Lambda "o"
-      $ Cons (Add1 $ Car "o")
-      $ "cong" @@ Nat
-               @@ Nat
-               @@ "n"
-               @@ (Add1 $ "double" @@ Car "o")
-               @@ (Cdr "o")
-               @@ Lambda "n" (Add1 "n")
-
-  , Define "even-or-odd" $ The ( Pi "n" Nat
-                               $ Either ("Even" @@ "n") ("Odd" @@ "n")
-                               )
-      $ Lambda "n"
-      $ IndNat "n" (Lambda "n" $ Either ("Even" @@ "n") ("Odd" @@ "n"))
-          (Inj1 "zero-is-even")
-      $ Lambda "n'" $ Lambda "eo"
-      $ IndEither "eo" (Lambda "_" $ Either ("Even" @@ Add1 "n'") ("Odd" @@ Add1 "n'"))
-          (Lambda "e" $ Inj2 $ "add1-even->odd" @@ "n'" @@ "e")
-          (Lambda "o" $ Inj1 $ "add1-odd->even" @@ "n'" @@ "o")
-
-
   -- You can use these examples to check whether your proof that all
   -- numbers are even or odd returns the expected results.
-  , Example (App "Even" (Add1 (Add1 (Add1 Zero))))
-  , Example (App (Var (Name "even-or-odd")) Zero)
-  , Example (App (Var (Name "even-or-odd")) (Add1 (Add1 (Add1 Zero))))
-  , Example (App (Var (Name "even-or-odd")) (App (Var (Name "double")) (Add1 (Add1 (Add1 Zero)))))
+  -- , Example (App (Var (Name "even-or-odd")) (Add1 (Add1 (Add1 Zero))))
+  -- , Example (App (Var (Name "even-or-odd")) (App (Var (Name "double")) (Add1 (Add1 (Add1 Zero)))))
   ]
 
-main :: IO ()
-main = do
-  case testfile evenOddProgram of
-    Left (Message err) -> putStrLn $ "ERROR: " <> err
-    Right z -> traverse_ print z
+
+main = return ()
 
